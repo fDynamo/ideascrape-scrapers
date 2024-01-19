@@ -1,5 +1,6 @@
 import fs from "fs";
 import { getArgs, getDateFilename, timeoutPromise } from "../helpers/index.js";
+import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { queryPH } from "./graphql-query.js";
 import { createObjectCsvWriter } from "csv-writer";
 import { flatten } from "flat";
@@ -38,16 +39,14 @@ const main = async () => {
 
   // Write log start
   const scriptStartedDate = new Date();
-  const scriptStartedStr = scriptStartedDate.toISOString();
-  const scriptStartedFilename = getDateFilename(scriptStartedDate);
-
-  const logStartFileName = scriptStartedFilename + "-start.txt";
-  const logStartFilePath = join(OUT_FOLDER, logStartFileName);
   const logFileStartContents = {
-    startedAt: scriptStartedStr,
     args: cliArgs,
   };
-  fs.writeFileSync(logStartFilePath, JSON.stringify(logFileStartContents));
+  const { scriptStartedStr, scriptStartedFilename } = logStartScrape(
+    OUT_FOLDER,
+    scriptStartedDate,
+    logFileStartContents
+  );
 
   const logFileEndContents = {};
 
@@ -132,18 +131,8 @@ const main = async () => {
   }
 
   // Write log end
-  const scriptEndedDate = new Date();
-  const scriptEndedStr = scriptEndedDate.toISOString();
-  const runTimeS =
-    (scriptEndedDate.getTime() - scriptStartedDate.getTime()) / 1000;
-
-  logFileEndContents.endedAt = scriptEndedStr;
-  logFileEndContents.runTimeS = runTimeS;
   logFileEndContents.endCursor = cursor;
-
-  const logEndFileName = scriptStartedFilename + "-end.txt";
-  const logEndFilePath = join(OUT_FOLDER, logEndFileName);
-  fs.writeFileSync(logEndFilePath, JSON.stringify(logFileEndContents));
+  logEndScrape(OUT_FOLDER, scriptStartedDate, logFileEndContents);
 
   console.log("PH Scraper ended");
 };
