@@ -9,7 +9,7 @@ import { fileURLToPath } from "url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const OUT_FOLDER = join(__dirname, "out");
-const RUN_DELAY = 1000;
+const RUN_DELAY = 1500;
 const DEFAULT_ENDING_CURSOR = 3000;
 
 const cliArgs = getArgs();
@@ -78,7 +78,6 @@ const main = async () => {
         const header = Object.keys(recordsToWrite[0]).map((headerTitle) => {
           return { headerTitle };
         });
-        console.log(header);
         csvWriter = createObjectCsvWriter({
           path: outFilePath,
           header,
@@ -97,7 +96,15 @@ const main = async () => {
       break;
     }
 
+    // Increment cursor
     cursor++;
+
+    // Log percentages
+    const doneFraction = cursor / ENDING_CURSOR;
+    const donePercentage = doneFraction * 100;
+    const donePercentageString = donePercentage.toFixed(2) + "%";
+    console.log(donePercentageString);
+
     if (cursor >= ENDING_CURSOR) {
       console.log("Met ending cursor");
       logFileEndContents.message = "SUCCESS";
@@ -119,7 +126,7 @@ const main = async () => {
   logFileEndContents.endCursor = cursor;
 
   fs.appendFileSync(logFilePath, "\n" + JSON.stringify(logFileEndContents));
-  console.log("PH Scrape ended");
+  console.log("PH Scraper ended");
 };
 
 main();
