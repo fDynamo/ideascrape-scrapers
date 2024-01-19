@@ -10,31 +10,44 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const OUT_FOLDER = join(__dirname, "out");
 const RUN_DELAY = 1500;
-const DEFAULT_ENDING_CURSOR = 3000;
 
+let START_CURSOR = 0;
+let ENDING_CURSOR = 5;
+
+// Handle CLI arguments
 const cliArgs = getArgs();
-const inEndingCursor = cliArgs[0];
-const ENDING_CURSOR = inEndingCursor
-  ? parseInt(inEndingCursor)
-  : DEFAULT_ENDING_CURSOR;
+const arg1 = cliArgs[0];
+const arg2 = cliArgs[1];
+
+if (arg1) {
+  // If both arguments present, start and end
+  if (arg2) {
+    START_CURSOR = parseInt(arg1);
+    ENDING_CURSOR = parseInt(arg2);
+  }
+  // Otherwise, only end
+  else {
+    ENDING_CURSOR = parseInt(arg1);
+  }
+}
 
 const main = async () => {
   console.log("PH Scraper started");
-  let cursor = 0;
+  let cursor = START_CURSOR;
   let continueRunning = true;
 
-  // Write log
+  // Write log start
   const scriptStartedDate = new Date();
   const scriptStartedStr = scriptStartedDate.toISOString();
   const scriptStartedFilename = getDateFilename(scriptStartedDate);
 
-  const logFileName = scriptStartedFilename + "-log.txt";
-  const logFilePath = join(OUT_FOLDER, logFileName);
+  const logStartFileName = scriptStartedFilename + "-start.txt";
+  const logStartFilePath = join(OUT_FOLDER, logStartFileName);
   const logFileStartContents = {
     startedAt: scriptStartedStr,
     args: cliArgs,
   };
-  fs.writeFileSync(logFilePath, JSON.stringify(logFileStartContents));
+  fs.writeFileSync(logStartFilePath, JSON.stringify(logFileStartContents));
 
   const logFileEndContents = {};
 
@@ -64,12 +77,14 @@ const main = async () => {
         throw new Error("No items retrieved!");
       }
 
-      const recordsToWrite = items.map((obj) => {
+      const recordsToWrite = items.map((obj, objIndex) => {
         obj._reqMeta = {
           scriptStartedAt: scriptStartedStr,
           startedAt: requestStartedStr,
           endedAt: requestEndedStr,
           nodeDate,
+          reqCursor: cursor,
+          objIndex,
         };
         return flatten(obj);
       });
@@ -100,7 +115,8 @@ const main = async () => {
     cursor++;
 
     // Log percentages
-    const doneFraction = cursor / ENDING_CURSOR;
+    const doneFraction =
+      (cursor - START_CURSOR) / (ENDING_CURSOR - START_CURSOR);
     const donePercentage = doneFraction * 100;
     const donePercentageString = donePercentage.toFixed(2) + "%";
     console.log(donePercentageString);
@@ -115,7 +131,7 @@ const main = async () => {
     await timeoutPromise(RUN_DELAY);
   }
 
-  // Add ending notes
+  // Write log end
   const scriptEndedDate = new Date();
   const scriptEndedStr = scriptEndedDate.toISOString();
   const runTimeS =
@@ -125,7 +141,10 @@ const main = async () => {
   logFileEndContents.runTimeS = runTimeS;
   logFileEndContents.endCursor = cursor;
 
-  fs.appendFileSync(logFilePath, "\n" + JSON.stringify(logFileEndContents));
+  const logEndFileName = scriptStartedFilename + "-end.txt";
+  const logEndFilePath = join(OUT_FOLDER, logEndFileName);
+  fs.writeFileSync(logEndFilePath, JSON.stringify(logFileEndContents));
+
   console.log("PH Scraper ended");
 };
 
