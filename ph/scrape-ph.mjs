@@ -76,7 +76,7 @@ const main = async () => {
 
       if (!csvWriter) {
         const header = Object.keys(recordsToWrite[0]).map((headerTitle) => {
-          return { headerTitle };
+          return { id: headerTitle, title: headerTitle };
         });
         csvWriter = createObjectCsvWriter({
           path: outFilePath,
