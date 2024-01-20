@@ -179,7 +179,7 @@ const main = async () => {
 
         console.log("ERROR", error);
         triesCounter++;
-        if ((isNavTimeout || isSelectorTimeout) && retryCounter < MAX_TRIES) {
+        if ((isNavTimeout || isSelectorTimeout) && triesCounter < MAX_TRIES) {
           await postPage.close();
           postPage = await browser.newPage();
           postPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
