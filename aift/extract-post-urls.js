@@ -4,7 +4,7 @@ const { readCsvFile } = require("../helpers/read-csv");
 const { getDateFilename, getArgs } = require("../helpers/index");
 
 const VALID_EXTRACT_TYPES = ["all", "latest"];
-let extractType = VALID_EXTRACT_TYPES[0];
+let extractType = VALID_EXTRACT_TYPES[1];
 
 // Handle CLI arguments
 const cliArgs = getArgs();
@@ -26,6 +26,7 @@ const main = async () => {
   let urlsList = [];
   const filesRead = [];
 
+  // All
   if (extractType == VALID_EXTRACT_TYPES[0]) {
     // Get all files
     for (let i = 0; i < files.length; i++) {
@@ -35,6 +36,7 @@ const main = async () => {
     }
   }
 
+  // Latest
   if (extractType == VALID_EXTRACT_TYPES[1]) {
     // Find oldest file
     let oldestFilename = "";
@@ -70,6 +72,6 @@ const main = async () => {
     filesRead,
     urls: urlsList,
   };
-  fs.writeFileSync(OUT_FILE, JSON.stringify(toWrite));
+  fs.writeFileSync(OUT_FILE, JSON.stringify(toWrite), { encoding: "utf-8" });
 };
 main();
