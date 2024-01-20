@@ -36,14 +36,14 @@ if (arg1) {
 }
 
 const main = async () => {
-  console.log("PH Scraper started");
+  console.log("ph scrape-homefeed started");
   let cursor = START_CURSOR;
   let continueRunning = true;
 
   // Write log start
   const scriptStartedDate = new Date();
   const logFileStartContents = {
-    args: cliArgs,
+    cliArgs,
   };
   const { scriptStartedStr, scriptStartedFilename } = logStartScrape(
     OUT_FOLDER,
@@ -135,7 +135,7 @@ const main = async () => {
   logFileEndContents.endCursor = cursor;
   logEndScrape(OUT_FOLDER, scriptStartedDate, logFileEndContents);
 
-  console.log("PH Scraper ended");
+  console.log("ph scrape-homefeed end");
 };
 
 main();
