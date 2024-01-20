@@ -18,6 +18,8 @@ const WAIT_TIMEOUT = 5 * 60 * 1000;
 puppeteer.use(StealthPlugin());
 
 const main = async () => {
+  console.log("aift scrape-front-page started");
+
   const startDate = new Date();
   const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
     OUT_FOLDER,
@@ -77,6 +79,8 @@ const main = async () => {
   if (browser) await browser.close();
 
   logEndScrape(OUT_FOLDER, startDate, logEndContents);
+
+  console.log("aift scrape-front-page ended");
 };
 
 main();
