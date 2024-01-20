@@ -28,8 +28,16 @@ const getDateFilename = (date) => {
   return date.toISOString().replace(/:/g, "_");
 };
 
+const convertObjKeysToHeader = (obj) => {
+  const header = Object.keys(obj).map((headerTitle) => {
+    return { id: headerTitle, title: headerTitle };
+  });
+  return header;
+};
+
 module.exports = {
   timeoutPromise,
   getArgs,
   getDateFilename,
+  convertObjKeysToHeader,
 };

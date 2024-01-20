@@ -1,5 +1,8 @@
-import fs from "fs";
-import { getArgs, getDateFilename, timeoutPromise } from "../helpers/index.js";
+import {
+  getArgs,
+  timeoutPromise,
+  convertObjKeysToHeader,
+} from "../helpers/index.js";
 import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { queryPH } from "./graphql-query.js";
 import { createObjectCsvWriter } from "csv-writer";
@@ -89,9 +92,7 @@ const main = async () => {
       });
 
       if (!csvWriter) {
-        const header = Object.keys(recordsToWrite[0]).map((headerTitle) => {
-          return { id: headerTitle, title: headerTitle };
-        });
+        const header = convertObjKeysToHeader(recordsToWrite[0]);
         csvWriter = createObjectCsvWriter({
           path: outFilePath,
           header,
