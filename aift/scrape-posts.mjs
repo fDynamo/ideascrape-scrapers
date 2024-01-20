@@ -20,7 +20,7 @@ const OUT_FOLDER = join(__dirname, "out");
 const OUT_POSTS_FOLDER = join(OUT_FOLDER, "posts");
 
 const NAV_TIMEOUT = 45 * 1000;
-const WAIT_TIMEOUT = 10 * 1000;
+const WAIT_TIMEOUT = 45 * 1000;
 const RUN_DELAY = 1000;
 const RETRY_DELAY = 5 * 1000;
 const MAX_TRIES = 3;
@@ -173,11 +173,13 @@ const main = async () => {
       } catch (error) {
         const errString = error + "";
         const NAV_ERROR_STRING = " Navigation timeout of";
+        const SELECTOR_ERROR_STRING = " Waiting for selector";
         const isNavTimeout = errString.includes(NAV_ERROR_STRING);
+        const isSelectorTimeout = errString.includes(SELECTOR_ERROR_STRING);
 
         console.log("ERROR", error);
         triesCounter++;
-        if (isNavTimeout && retryCounter < MAX_TRIES) {
+        if ((isNavTimeout || isSelectorTimeout) && retryCounter < MAX_TRIES) {
           await postPage.close();
           postPage = await browser.newPage();
           postPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
