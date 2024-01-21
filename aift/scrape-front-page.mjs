@@ -35,7 +35,13 @@ const main = async () => {
     browser = await puppeteer.launch({ headless: "new" });
 
     const tasksSelector = "#data_hist";
+    const featuredBarSelector = "#sidebar_right .tasks";
     aiftPage = await browser.newPage();
+    await aiftPage.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1,
+    });
     aiftPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
 
     const requestStartedDate = new Date();
@@ -43,12 +49,23 @@ const main = async () => {
 
     await aiftPage.goto("https://theresanaiforthat.com/");
     await aiftPage.waitForSelector(tasksSelector, { timeout: WAIT_TIMEOUT });
-    const results = await aiftPage.evaluate(evaluateTasks, tasksSelector);
+    await aiftPage.waitForSelector(featuredBarSelector, {
+      timeout: WAIT_TIMEOUT,
+    });
+    const resultsMain = await aiftPage.evaluate(evaluateTasks, tasksSelector);
+    const resultsFeatured = await aiftPage.evaluate(
+      evaluateTasks,
+      featuredBarSelector
+    );
 
     const requestEndedDate = new Date();
     const requestEndedStr = requestEndedDate.toISOString();
 
     // Process results
+    resultsMain.forEach((obj) => (obj.inFeaturedBar = false));
+    resultsFeatured.forEach((obj) => (obj.inFeaturedBar = true));
+
+    const results = [...resultsMain, ...resultsFeatured];
     const recordsToWrite = results.map((obj, objIndex) => {
       obj._reqMeta = {
         scriptStartedAt: scriptStartedStr,
