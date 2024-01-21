@@ -44,7 +44,7 @@ const evaluateTasks = async (tasksSelector) => {
     // Get label
     let labelText = "";
     const labelSelector = "a.task_label";
-    const labelEl = document.querySelector(labelSelector);
+    const labelEl = listItem.querySelector(labelSelector);
     if (labelEl) {
       labelText = labelEl.innerText;
     }
@@ -52,7 +52,7 @@ const evaluateTasks = async (tasksSelector) => {
     // Get postUrl
     let postUrl = "";
     const statsAnchorSelector = "a.stats";
-    const statsAnchor = document.querySelector(statsAnchorSelector);
+    const statsAnchor = listItem.querySelector(statsAnchorSelector);
     if (statsAnchor) {
       postUrl = statsAnchor.href;
     }
