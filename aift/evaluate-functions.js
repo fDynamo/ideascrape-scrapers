@@ -20,7 +20,7 @@ const evaluateTasks = async (tasksSelector) => {
     const titleAnchorUrl = titleAnchor.href;
 
     const projectName2 = titleAnchorText;
-    const postUrl = titleAnchorUrl;
+    const titleLinkUrl = titleAnchorUrl;
 
     // Check if verified
     const listItemClass = listItem.getAttribute("class");
@@ -47,6 +47,14 @@ const evaluateTasks = async (tasksSelector) => {
     const labelEl = document.querySelector(labelSelector);
     if (labelEl) {
       labelText = labelEl.innerText;
+    }
+
+    // Get postUrl
+    let postUrl = "";
+    const statsAnchorSelector = "a.stats";
+    const statsAnchor = document.querySelector(statsAnchorSelector);
+    if (statsAnchor) {
+      postUrl = statsAnchor.href;
     }
 
     // Get stats
@@ -84,6 +92,7 @@ const evaluateTasks = async (tasksSelector) => {
       projectName2,
       aiftSlug,
       sourceUrl,
+      titleLinkUrl,
       postUrl,
       isVerified,
       cornerIconUrl,
