@@ -328,8 +328,17 @@ const evaluatePostPage = async () => {
     );
   }
 
+  // Get title
+  let postTitle = "";
+  const titleSelector = ".title_wrap .title_inner";
+  const titleEl = document.querySelector(titleSelector);
+  if (titleEl) {
+    postTitle = titleEl.innerText;
+  }
+
   return {
     productInfo: {
+      postTitle,
       useCase,
       chatGptDescription,
       faqList,

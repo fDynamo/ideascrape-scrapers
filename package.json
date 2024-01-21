@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "scrape:ph:daily": "node ./ph/scrape-homefeed.mjs 7",
+    "scrape:ph:daily": "node ./ph/scrape-homefeed.mjs 14",
     "scrape:aift:daily": "node ./aift/scrape-front-page.mjs && node ./aift/scrape-periods.mjs 2024 && node ./aift/extract-post-urls.js && node ./aift/scrape-posts.mjs",
     "scrape:aift:all": "node ./aift/scrape-front-page.mjs && node ./aift/scrape-periods.mjs && node ./aift/extract-post-urls.js all && node ./aift/scrape-posts.mjs",
     "scrape:aift:posts:all": "node ./aift/extract-post-urls.js all && node ./aift/scrape-posts.mjs"

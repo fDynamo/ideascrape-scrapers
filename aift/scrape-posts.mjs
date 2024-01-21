@@ -19,8 +19,8 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_FOLDER = join(__dirname, "out");
 const OUT_POSTS_FOLDER = join(OUT_FOLDER, "posts");
 
-const NAV_TIMEOUT = 20 * 1000;
-const WAIT_TIMEOUT = 20 * 1000;
+const NAV_TIMEOUT = 10 * 1000;
+const WAIT_TIMEOUT = 10 * 1000;
 const RUN_DELAY = 1000;
 const RETRY_DELAY = 5 * 1000;
 const MAX_TRIES = 3;
