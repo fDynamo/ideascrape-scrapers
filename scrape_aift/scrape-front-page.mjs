@@ -6,11 +6,11 @@ import { evaluateTasks } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader } from "../helpers/index.js";
-import { flatten } from "flat";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const OUT_FOLDER = join(__dirname, "out", "front");
+const OUT_FOLDER = join(__dirname, "out");
+const OUT_FRONT_FOLDER = join(OUT_FOLDER, "front");
 
 const NAV_TIMEOUT = 5 * 60 * 1000;
 const WAIT_TIMEOUT = 5 * 60 * 1000;
@@ -22,7 +22,7 @@ const main = async () => {
 
   const startDate = new Date();
   const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
-    OUT_FOLDER,
+    OUT_FRONT_FOLDER,
     startDate,
     {}
   );
@@ -79,7 +79,7 @@ const main = async () => {
     // Write results
     const header = convertObjKeysToHeader(recordsToWrite[0]);
     const outFileName = scriptStartedFilename + ".csv";
-    const outFilePath = join(OUT_FOLDER, outFileName);
+    const outFilePath = join(OUT_FRONT_FOLDER, outFileName);
     const csvWriter = createObjectCsvWriter({
       path: outFilePath,
       header,
@@ -95,7 +95,7 @@ const main = async () => {
   if (aiftPage) await aiftPage.close();
   if (browser) await browser.close();
 
-  logEndScrape(OUT_FOLDER, startDate, logEndContents);
+  logEndScrape(OUT_FRONT_FOLDER, startDate, logEndContents);
 
   console.log("aift scrape-front-page ended");
 };

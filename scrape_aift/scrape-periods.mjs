@@ -6,12 +6,12 @@ import { evaluateTasks } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader, getArgs } from "../helpers/index.js";
-import { flatten } from "flat";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const OUT_FOLDER = join(__dirname, "out", "periods");
+const OUT_FOLDER = join(__dirname, "out");
+const OUT_PERIODS_FOLDER = join(OUT_FOLDER, "periods");
 
 const NAV_TIMEOUT = 5 * 60 * 1000;
 const WAIT_TIMEOUT = 5 * 60 * 1000;
@@ -44,7 +44,7 @@ const main = async () => {
 
   const startDate = new Date();
   const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
-    OUT_FOLDER,
+    OUT_PERIODS_FOLDER,
     startDate,
     { cliArgs }
   );
@@ -92,7 +92,7 @@ const main = async () => {
       if (!csvWriter) {
         const header = convertObjKeysToHeader(recordsToWrite[0]);
         const outFileName = scriptStartedFilename + ".csv";
-        const outFilePath = join(OUT_FOLDER, outFileName);
+        const outFilePath = join(OUT_PERIODS_FOLDER, outFileName);
         csvWriter = createObjectCsvWriter({
           path: outFilePath,
           header,
@@ -111,7 +111,7 @@ const main = async () => {
   if (aiftPage) await aiftPage.close();
   if (browser) await browser.close();
 
-  logEndScrape(OUT_FOLDER, startDate, logEndContents);
+  logEndScrape(OUT_PERIODS_FOLDER, startDate, logEndContents);
 
   console.log("aift scrape-periods ended");
 };
