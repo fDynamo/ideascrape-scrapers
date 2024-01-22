@@ -162,7 +162,7 @@ const main = async () => {
         countSuccessfulScrapes += 1;
 
         // Print percentage
-        const normalizedIndex = i - START_INDEX;
+        const normalizedIndex = i + 1 - START_INDEX;
         const normalizedLastIndex = lastIndex - START_INDEX;
         const doneFraction = normalizedIndex / normalizedLastIndex;
         const donePercentage = doneFraction * 100;
