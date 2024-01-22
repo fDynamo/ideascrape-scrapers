@@ -330,6 +330,16 @@ const evaluatePostPage = async () => {
     postTitle = titleEl.innerText;
   }
 
+  // Get link data
+  let productLink = "";
+  let productLinkDataType = "";
+  const productLinkSelector = "a#ai_top_link";
+  const productLinkAnchor = document.querySelector(productLinkSelector);
+  if (productLinkAnchor) {
+    productLink = productLinkAnchor.href;
+    productLinkDataType = productLinkAnchor.getAttribute("data-type");
+  }
+
   return {
     productInfo: {
       postTitle,
@@ -344,6 +354,8 @@ const evaluatePostPage = async () => {
       priceTag,
       primaryTask,
       rankingText,
+      productLink,
+      productLinkDataType,
     },
     tags: {
       taskLabel,
