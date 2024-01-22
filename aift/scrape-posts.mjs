@@ -89,7 +89,7 @@ const main = async () => {
   const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
     OUT_POSTS_FOLDER,
     startDate,
-    { cliArgs, urlsFilepath, countUrlsToScrape: lastIndex }
+    { cliArgs, urlsFilepath, countUrlsToScrape: lastIndex - START_INDEX }
   );
 
   const endLogContents = {};
