@@ -13,6 +13,7 @@ import {
 import path from "path";
 import { readFileSync, readdirSync } from "fs";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
+import registerGracefulExit from "../helpers/graceful-exit.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -113,6 +114,12 @@ const main = async () => {
     let triesCounter = 0;
 
     let csvWriter = null;
+    let forcedStop = false;
+    const FORCED_STOP_ERROR_STRING = "Forced stop";
+    registerGracefulExit(() => {
+      forcedStop = true;
+    });
+
     for (let i = START_INDEX; i < lastIndex; i++) {
       urlToScrape = postUrlsToScrape[i];
       urlToScrapeIndex = i;
@@ -169,6 +176,10 @@ const main = async () => {
         const donePercentageString = donePercentage.toFixed(2) + "%";
         console.log("done", donePercentageString);
 
+        if (forcedStop) {
+          throw new Error(FORCED_STOP_ERROR_STRING);
+        }
+
         await timeoutPromise(RUN_DELAY);
       } catch (error) {
         const errString = error + "";
@@ -176,9 +187,15 @@ const main = async () => {
         const SELECTOR_ERROR_STRING = " Waiting for selector";
         const isNavTimeout = errString.includes(NAV_ERROR_STRING);
         const isSelectorTimeout = errString.includes(SELECTOR_ERROR_STRING);
+        const isForcedStop = errString.includes(FORCED_STOP_ERROR_STRING);
 
         console.log("ERROR", error);
         triesCounter++;
+
+        if (isForcedStop) {
+          throw error;
+        }
+
         if ((isNavTimeout || isSelectorTimeout) && triesCounter < MAX_TRIES) {
           await postPage.close();
           postPage = await browser.newPage();
@@ -208,6 +225,7 @@ const main = async () => {
   logEndScrape(OUT_POSTS_FOLDER, startDate, endLogContents);
 
   console.log("aift scrape-posts ended");
+  process.exit();
 };
 
 main();
