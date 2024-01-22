@@ -237,7 +237,7 @@ const evaluatePostPage = async () => {
 
   // Ranking variables
   let primaryTask = "";
-  let mostPopularAlternative = null;
+  let mostPopularAlternative = "";
   let rankingAlternativesText = "";
   let tagList = [];
   let priceTag = "";
@@ -278,10 +278,10 @@ const evaluatePostPage = async () => {
     const mpaSelector = "div.pill.nobg > a";
     const mpaEl = rankingDiv.querySelector(mpaSelector);
     if (mpaEl) {
-      mostPopularAlternative = {
+      mostPopularAlternative = JSON.stringify({
         postUrl: mpaEl.href,
         name: mpaEl.innerText,
-      };
+      });
     }
 
     // Num alternatives
