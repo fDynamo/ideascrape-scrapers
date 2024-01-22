@@ -10,9 +10,9 @@ import {
   getArgs,
   timeoutPromise,
 } from "../helpers/index.js";
-import { flatten } from "flat";
 import path from "path";
 import { readFileSync, readdirSync } from "fs";
+import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -143,7 +143,7 @@ const main = async () => {
           postIndex: i,
           postUrl: urlToScrape,
         };
-        const recordToWrite = flatten(result);
+        const recordToWrite = arraySafeFlatten(result);
 
         // Write to csv file
         if (!csvWriter) {

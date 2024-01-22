@@ -73,7 +73,7 @@ const main = async () => {
         endedAt: requestEndedStr,
         objIndex,
       };
-      return flatten(obj);
+      return arraySafeFlatten(obj);
     });
 
     // Write results

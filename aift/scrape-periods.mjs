@@ -7,6 +7,7 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader, getArgs } from "../helpers/index.js";
 import { flatten } from "flat";
+import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -84,7 +85,7 @@ const main = async () => {
           year,
           objIndex,
         };
-        return flatten(obj);
+        return arraySafeFlatten(obj);
       });
 
       // Write results

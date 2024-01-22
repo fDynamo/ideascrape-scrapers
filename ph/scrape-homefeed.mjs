@@ -1,3 +1,4 @@
+import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import {
   getArgs,
   timeoutPromise,
@@ -6,7 +7,6 @@ import {
 import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { queryPH } from "./graphql-query.js";
 import { createObjectCsvWriter } from "csv-writer";
-import { flatten } from "flat";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
@@ -88,7 +88,7 @@ const main = async () => {
           reqCursor: cursor,
           objIndex,
         };
-        return flatten(obj);
+        return arraySafeFlatten(obj);
       });
 
       if (!csvWriter) {

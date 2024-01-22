@@ -154,9 +154,6 @@ const evaluatePostPage = async () => {
     }
   }
 
-  prosList = JSON.stringify(prosList);
-  consList = JSON.stringify(consList);
-
   // Faq
   let faqList = [];
   const faqInfoSelector = "div.faq-info";
@@ -178,8 +175,6 @@ const evaluatePostPage = async () => {
       });
     }
   }
-
-  faqList = JSON.stringify(faqList);
 
   // Info panel
   let firstFeaturedText = "";
@@ -296,7 +291,6 @@ const evaluatePostPage = async () => {
       rankingAlternativesText = alternativesTextEl.parentElement.innerText;
     }
   }
-  tagList = JSON.stringify(tagList);
 
   // Alternatives text
   let alternativesCount = 0;
@@ -314,8 +308,6 @@ const evaluatePostPage = async () => {
   if (alsoSearchedEl) {
     alsoSearchedList = alsoSearchedEl.innerText.split("\n");
   }
-
-  alsoSearchedList = JSON.stringify(alsoSearchedList);
 
   // Comments
   let countComments = 0;
