@@ -1,8 +1,10 @@
 import pandas as pd
 import os.path as path
 from os import listdir
-from calculate_unique_url import calculate_unique_url
-from helpers.string_formatters import camel_to_snake_case
+from custom_helpers.url_formatters import calculate_unique_url, clean_url
+from custom_helpers.string_formatters import camel_to_snake_case
+from custom_helpers.filter_urls import is_url_valid
+from custom_helpers.string_formatters import clean_text
 
 dir_path = path.dirname(path.realpath(__file__))
 AIFT_OUT_PATH = path.join(dir_path, "..", "scrape_aift", "out")
@@ -83,7 +85,7 @@ def fix_launch_date(launch_date: str):
 aift_df["launch_date_text"] = aift_df["launch_date_text"].apply(fix_launch_date)
 
 # Grab date from featured at
-aift_df["launch_date"] = pd.to_datetime(aift_df["launch_date_text"], format="mixed")
+aift_df["launch_date"] = pd.to_datetime(aift_df["launch_date_text"], utc=True)
 
 # Get unique url
 aift_df["unique_url"] = aift_df["source_url"].apply(calculate_unique_url)
@@ -96,6 +98,16 @@ unscraped_df = unscraped_df[unscraped_df["_merge"] == "left_only"].reset_index(
     drop=True
 )[["post_url"]]
 unscraped_df.to_csv(UNSCRAPED_OUT, encoding="utf-8")
+
+# Format url
+aift_df["source_url"] = aift_df["source_url"].apply(clean_url)
+
+# Filter urls
+aift_df["is_valid"] = aift_df["source_url"].apply(is_url_valid)
+aift_df = aift_df[aift_df["is_valid"] == True]
+
+# Format description
+aift_df["description"] = aift_df["description"].apply(clean_text)
 
 # Reorder
 aift_df = aift_df[
@@ -125,6 +137,7 @@ aift_df.columns = [
 
 aift_df = aift_df.sort_values(by=["created_at"]).reset_index(drop=True)
 aift_df.index.name = "id"
+
 
 print(aift_df)
 print("Columns")

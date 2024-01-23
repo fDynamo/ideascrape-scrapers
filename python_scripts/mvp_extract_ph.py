@@ -1,8 +1,9 @@
 import pandas as pd
 import os.path as path
 from os import listdir
-from calculate_unique_url import calculate_unique_url
-from helpers.string_formatters import camel_to_snake_case
+from custom_helpers.url_formatters import calculate_unique_url, clean_url
+from custom_helpers.string_formatters import clean_text
+from custom_helpers.filter_urls import is_url_valid
 
 dir_path = path.dirname(path.realpath(__file__))
 PH_OUT_PATH = path.join(dir_path, "..", "scrape_ph", "out")
@@ -59,7 +60,17 @@ ph_df = ph_df.drop_duplicates(subset="product_url", keep="last")
 ph_df["unique_url"] = ph_df["product_url"].apply(calculate_unique_url)
 
 # Convert to datetime
-ph_df["created_at"] = pd.to_datetime(ph_df["created_at"])
+ph_df["created_at"] = pd.to_datetime(ph_df["created_at"], utc=True)
+
+# Format url
+ph_df["product_url"] = ph_df["product_url"].apply(clean_url)
+
+# Filter urls
+ph_df["is_valid"] = ph_df["product_url"].apply(is_url_valid)
+ph_df = ph_df[ph_df["is_valid"] == True]
+
+# Clean description
+ph_df["product_description"] = ph_df["product_description"].apply(clean_text)
 
 # Sort columns
 ph_df = ph_df[

@@ -1,12 +1,19 @@
-from urllib.parse import urlencode, urlparse, urlunparse, parse_qs, urljoin
-
-
 def calculate_unique_url(in_url: str) -> str:
+    in_url = clean_url(in_url)  # Replace slash with underscore
+
+    in_url = in_url.replace("/", "_")
+
+    return in_url
+
+
+def clean_url(in_url: str) -> str:
     # Lowercase url
     in_url = in_url.lower()
 
     # Remove query params
-    in_url = urljoin(in_url, urlparse(in_url).path)
+    question_mark_index = in_url.find("?")
+    if question_mark_index > -1:
+        in_url = in_url[:question_mark_index]
 
     # Replace beginning https
     if in_url.startswith("https://"):
@@ -16,11 +23,8 @@ def calculate_unique_url(in_url: str) -> str:
     if in_url.startswith("www."):
         in_url = in_url[4:]
 
-    # Replace slash with underscore
-    in_url = in_url.replace("/", "_")
-
-    # Remove ending slash
-    if in_url[-1] == "_":
+    # Remove trailing slash
+    if in_url[-1] == "/":
         in_url = in_url[:-1]
 
     return in_url
