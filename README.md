@@ -5,8 +5,10 @@ This repo contains scraping scripts for ideascrape
 ## TO IMPROVE
 
 - Better logging
-- Handle force stop
+- Handle force stop in all
+- Change scrape outputs to camelcase
 - AIFT daily scrape should only scrape the month
+- Standardize data variable names with sql table
 
 ## How to handle force stop
 

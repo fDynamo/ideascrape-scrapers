@@ -83,30 +83,6 @@ aift_df["launch_date"] = pd.to_datetime(aift_df["launch_date_text"], format="mix
 # Get unique url
 aift_df["unique_url"] = aift_df["source_url"].apply(calculate_unique_url)
 
-
-# Reorder
-aift_df = aift_df[
-    [
-        "post_url",
-        "source_url",
-        "unique_url",
-        "count_saves",
-        "count_ratings",
-        "rating",
-        "project_name",
-        "description",
-        "launch_date",
-    ]
-]
-
-aift_df.index.name = "index"
-
-print(aift_df)
-print("Columns")
-print(aift_df.columns)
-
-aift_df.to_csv(OUT_FILE, encoding="utf-8")
-
 # Find out unscraped urls
 unscraped_df = all_post_urls.merge(
     aift_df, left_on="post_url", right_on="post_url", indicator=True, how="left"
@@ -115,3 +91,34 @@ unscraped_df = unscraped_df[unscraped_df["_merge"] == "left_only"].reset_index(
     drop=True
 )[["post_url"]]
 unscraped_df.to_csv(UNSCRAPED_OUT, encoding="utf-8")
+
+# Reorder
+aift_df = aift_df[
+    [
+        "unique_url",
+        "project_name",
+        "description",
+        "source_url",
+        "count_saves",
+        "count_ratings",
+        "rating",
+        "launch_date",
+    ]
+]
+aift_df.index.name = "id"
+aift_df.columns = [
+    "unique_url",
+    "product_name",
+    "product_description",
+    "product_url",
+    "count_save",
+    "count_rating",
+    "rating",
+    "created_at",
+]
+
+print(aift_df)
+print("Columns")
+print(aift_df.columns)
+
+aift_df.to_csv(OUT_FILE, encoding="utf-8")
