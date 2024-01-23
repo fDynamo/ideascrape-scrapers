@@ -13,9 +13,12 @@ OUT_FILE = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
 UNSCRAPED_OUT = path.join(MVP_OUT_FOLDER, "aift_unscraped.csv")
 
 # Read all from periods
+all_period_files = listdir(AIFT_PERIODS_PATH)
+all_period_files.sort()
+
 period_files = [
     path.join(AIFT_PERIODS_PATH, f)
-    for f in listdir(AIFT_PERIODS_PATH)
+    for f in all_period_files
     if f.endswith(".csv") and path.isfile(path.join(AIFT_PERIODS_PATH, f))
 ]
 
@@ -39,9 +42,11 @@ all_post_urls = period_df[["post_url"]]
 
 
 # Read from posts
+all_post_files = listdir(AIFT_POSTS_PATH)
+all_post_files.sort()
 post_files = [
     path.join(AIFT_POSTS_PATH, f)
-    for f in listdir(AIFT_POSTS_PATH)
+    for f in all_post_files
     if f.endswith(".csv") and path.isfile(path.join(AIFT_POSTS_PATH, f))
 ]
 
@@ -102,10 +107,10 @@ aift_df = aift_df[
         "count_saves",
         "count_ratings",
         "rating",
+        "post_url",
         "launch_date",
     ]
 ]
-aift_df.index.name = "id"
 aift_df.columns = [
     "unique_url",
     "product_name",
@@ -114,8 +119,12 @@ aift_df.columns = [
     "count_save",
     "count_rating",
     "rating",
+    "aift_url",
     "created_at",
 ]
+
+aift_df = aift_df.sort_values(by=["created_at"]).reset_index(drop=True)
+aift_df.index.name = "id"
 
 print(aift_df)
 print("Columns")
