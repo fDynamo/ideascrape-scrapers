@@ -6,6 +6,7 @@ import { evaluateTasks } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader } from "../helpers/index.js";
+import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
