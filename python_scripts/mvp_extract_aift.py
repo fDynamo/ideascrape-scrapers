@@ -1,7 +1,7 @@
 import pandas as pd
 import os.path as path
 from os import listdir
-from custom_helpers.url_formatters import calculate_unique_url, clean_url
+from custom_helpers.url_formatters import clean_url
 from custom_helpers.string_formatters import camel_to_snake_case
 from custom_helpers.filter_urls import is_url_valid
 from custom_helpers.string_formatters import clean_text
@@ -39,6 +39,12 @@ period_df = period_df.drop_duplicates(subset="post_url", keep="last").reset_inde
     drop=True
 )
 
+# Format url
+period_df["source_url"] = period_df["source_url"].apply(clean_url)
+period_df = period_df.drop_duplicates(subset="source_url", keep="last").reset_index(
+    drop=True
+)
+
 # Save post urls for comparison later
 all_post_urls = period_df[["post_url"]]
 
@@ -71,6 +77,7 @@ post_df.columns = ["post_url", "count_ratings", "description", "launch_date_text
 post_df = post_df.drop_duplicates(subset="post_url", keep="last").reset_index(drop=True)
 
 
+# Merge dfs
 aift_df = post_df.merge(period_df, how="inner", on="post_url").reset_index(drop=True)
 
 
@@ -87,8 +94,6 @@ aift_df["launch_date_text"] = aift_df["launch_date_text"].apply(fix_launch_date)
 # Grab date from featured at
 aift_df["launch_date"] = pd.to_datetime(aift_df["launch_date_text"], utc=True)
 
-# Get unique url
-aift_df["unique_url"] = aift_df["source_url"].apply(calculate_unique_url)
 
 # Find out unscraped urls
 unscraped_df = all_post_urls.merge(
@@ -99,8 +104,6 @@ unscraped_df = unscraped_df[unscraped_df["_merge"] == "left_only"].reset_index(
 )[["post_url"]]
 unscraped_df.to_csv(UNSCRAPED_OUT, encoding="utf-8")
 
-# Format url
-aift_df["source_url"] = aift_df["source_url"].apply(clean_url)
 
 # Filter urls
 aift_df["is_valid"] = aift_df["source_url"].apply(is_url_valid)
@@ -112,7 +115,6 @@ aift_df["description"] = aift_df["description"].apply(clean_text)
 # Reorder
 aift_df = aift_df[
     [
-        "unique_url",
         "project_name",
         "description",
         "source_url",
@@ -124,7 +126,6 @@ aift_df = aift_df[
     ]
 ]
 aift_df.columns = [
-    "unique_url",
     "product_name",
     "product_description",
     "product_url",
