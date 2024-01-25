@@ -83,7 +83,7 @@ const evaluateTasks = async (tasksSelector) => {
         const statsText = statsRightDiv.innerText;
         const statsComponents = statsText.split("\n");
         if (statsComponents.length)
-          starRatings = parseFloat(statsComponents[statsComponents.length - 1]);
+          starRatings = parseFloat(statsComponents[0]);
       }
     }
 
