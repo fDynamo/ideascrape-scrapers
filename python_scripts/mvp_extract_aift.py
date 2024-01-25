@@ -133,10 +133,10 @@ aift_df.columns = [
     "count_rating",
     "rating",
     "aift_url",
-    "created_at",
+    "product_listed_at",
 ]
 
-aift_df = aift_df.sort_values(by=["created_at"]).reset_index(drop=True)
+aift_df = aift_df.sort_values(by=["product_listed_at"]).reset_index(drop=True)
 aift_df.index.name = "id"
 
 

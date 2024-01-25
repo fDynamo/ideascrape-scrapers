@@ -43,7 +43,7 @@ ph_df.columns = [
     "product_name",
     "product_description",
     "product_url",
-    "created_at",
+    "product_listed_at",
     "count_review",
     "rating",
     "count_follower",
@@ -59,7 +59,7 @@ ph_df["product_url"] = ph_df["product_url"].apply(clean_url)
 ph_df = ph_df.drop_duplicates(subset="product_url", keep="last")
 
 # Convert to datetime
-ph_df["created_at"] = pd.to_datetime(ph_df["created_at"], utc=True)
+ph_df["product_listed_at"] = pd.to_datetime(ph_df["product_listed_at"], utc=True)
 
 # Filter urls
 ph_df["is_valid"] = ph_df["product_url"].apply(is_url_valid)
@@ -78,12 +78,12 @@ ph_df = ph_df[
         "count_review",
         "rating",
         "ph_url",
-        "created_at",
+        "product_listed_at",
     ]
 ]
 
 
-ph_df = ph_df.sort_values(by=["created_at"]).reset_index(drop=True)
+ph_df = ph_df.sort_values(by=["product_listed_at"]).reset_index(drop=True)
 ph_df.index.name = "id"
 
 print(ph_df)
