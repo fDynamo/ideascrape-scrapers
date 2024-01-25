@@ -68,6 +68,10 @@ ph_df = ph_df[ph_df["is_valid"] == True]
 # Clean description
 ph_df["product_description"] = ph_df["product_description"].apply(clean_text)
 
+# Cast to ints
+ph_df["count_follower"] = ph_df["count_follower"].astype(int)
+ph_df["count_review"] = ph_df["count_review"].astype(int)
+
 # Sort columns
 ph_df = ph_df[
     [
