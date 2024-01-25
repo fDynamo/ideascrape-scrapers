@@ -27,14 +27,13 @@ period_files = [
 period_df_list = []
 for period_file in period_files:
     df: pd.DataFrame = pd.read_csv(period_file)
-    df = df.loc[:, ["projectName", "sourceUrl", "postUrl", "countSaves", "starRatings"]]
+    df = df.loc[:, ["projectName", "sourceUrl", "postUrl", "countSaves"]]
     period_df_list.append(df)
 
 # Merge dfs
 period_df: pd.DataFrame = pd.concat(period_df_list, axis=0)
 new_columns = [camel_to_snake_case(col) for col in period_df.columns]
 period_df.columns = new_columns
-period_df = period_df.rename(columns={"star_ratings": "rating"})
 period_df = period_df.drop_duplicates(subset="post_url", keep="last").reset_index(
     drop=True
 )
@@ -68,12 +67,19 @@ for post_file in post_files:
             "ratings.countRatings",
             "productInfo.chatGptDescription",
             "productInfo.launchDateText",
+            "ratings.starRatings",
         ],
     ]
     post_df_list.append(df)
 
 post_df = pd.concat(post_df_list, axis=0)
-post_df.columns = ["post_url", "count_ratings", "description", "launch_date_text"]
+post_df.columns = [
+    "post_url",
+    "count_ratings",
+    "description",
+    "launch_date_text",
+    "rating",
+]
 post_df = post_df.drop_duplicates(subset="post_url", keep="last").reset_index(drop=True)
 
 

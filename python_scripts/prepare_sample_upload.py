@@ -23,6 +23,8 @@ ph_df = ph_df.rename(
         "created_at": "product_listed_at",
     }
 )
+ph_df["count_follower"] = ph_df["count_follower"].astype(int)
+ph_df["count_review"] = ph_df["count_review"].astype(int)
 
 aift_sample_df = pd.read_csv(AIFT_SAMPLE_PATH)
 aift_embeddings_df = pd.read_csv(AIFT_SAMPLE_EMBEDDINGS_PATH)
@@ -34,6 +36,18 @@ aift_df = aift_df.rename(
     }
 )
 
+# Fix aift star ratings
+
+# Remove star ratings
+aift_df = aift_df.drop(["rating"], axis=1)
+
+# Import extract
+AIFT_EXTRACT_PATH = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
+aift_extract_df = pd.read_csv(AIFT_EXTRACT_PATH, encoding="utf-8")
+aift_extract_df = aift_extract_df[["aift_url", "rating"]]
+
+# Merge on post url
+aift_df = aift_df.merge(aift_extract_df, on="aift_url")
 
 # Split into search_main and source tables data
 ph_df = ph_df.rename_axis("ph_id").reset_index()
@@ -65,14 +79,35 @@ aift_source_df = aift_df[
 ]
 
 # Merge the two search tables
-search_main_df = pd.concat(
-    [aift_search_main_df, ph_search_main_df], axis=0, join="outer"
-).reset_index(drop=True)
+search_main_df = (
+    pd.concat([aift_search_main_df, ph_search_main_df], axis=0, join="outer")
+    .dropna(subset="product_description")
+    .reset_index(drop=True)
+)
+
+# Merge just the ph and aift ids
+search_main_ids_df = aift_search_main_df[["product_url", "aift_id"]].merge(
+    ph_search_main_df[["product_url", "ph_id"]], how="outer", on="product_url"
+)
+
+# Remove duplicates in main df based on description length
+search_main_df["description_length"] = search_main_df["product_description"].apply(len)
+search_main_df = search_main_df.sort_values(by="description_length", ascending=True)
+search_main_df = search_main_df.drop_duplicates(subset="product_url", keep="last")
+
+# Bring search main ids back
+search_main_df = search_main_df.drop(["description_length", "ph_id", "aift_id"], axis=1)
+search_main_df = search_main_df.merge(search_main_ids_df, on="product_url")
+
 
 # Rename indexes
 search_main_df.index.name = "id"
 aift_source_df.index.name = "id"
 ph_source_df.index.name = "id"
+
+# Cast as ints
+search_main_df["ph_id"] = search_main_df["ph_id"].astype("Int64")
+search_main_df["aift_id"] = search_main_df["aift_id"].astype("Int64")
 
 
 # Print
@@ -81,6 +116,7 @@ SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
 SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
 SOURCE_AIFT_FILE = path.join(UPLOAD_OUT_FOLDER, "source_aift.csv")
 
+search_main_df = search_main_df.sample(4000)
 search_main_df.to_csv(SEARCH_MAIN_FILE, header=True, index=True, encoding="utf-8")
 
 aift_source_df["count_rating"] = aift_source_df["count_rating"].astype(int)
