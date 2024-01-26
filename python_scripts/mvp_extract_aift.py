@@ -5,12 +5,15 @@ from custom_helpers.url_formatters import clean_url
 from custom_helpers.string_formatters import camel_to_snake_case
 from custom_helpers.filter_urls import is_url_valid
 from custom_helpers.string_formatters import clean_text
+from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
 
-dir_path = path.dirname(path.realpath(__file__))
-AIFT_OUT_PATH = path.join(dir_path, "..", "scrape_aift", "out")
+
+AIFT_OUT_PATH = path.join(get_master_out_folder(), "aift")
 AIFT_PERIODS_PATH = path.join(AIFT_OUT_PATH, "periods")
 AIFT_POSTS_PATH = path.join(AIFT_OUT_PATH, "posts")
-MVP_OUT_FOLDER = path.join(dir_path, "out", "mvp")
+MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
+ensure_folders_exist([MVP_OUT_FOLDER])
+
 OUT_FILE = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
 UNSCRAPED_OUT = path.join(MVP_OUT_FOLDER, "aift_unscraped.csv")
 

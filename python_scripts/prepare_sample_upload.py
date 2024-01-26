@@ -1,13 +1,19 @@
 import pandas as pd
 import os.path as path
+from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
 
-dir_path = path.dirname(path.realpath(__file__))
-MVP_OUT_FOLDER = path.join(dir_path, "out", "mvp")
+MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
 PH_SAMPLE_PATH = path.join(MVP_OUT_FOLDER, "ph_sample.csv")
 PH_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "ph_sample_embeddings.csv")
 AIFT_SAMPLE_PATH = path.join(MVP_OUT_FOLDER, "aift_sample.csv")
 AIFT_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "aift_sample_embeddings.csv")
 
+
+UPLOAD_OUT_FOLDER = path.join(MVP_OUT_FOLDER, "to_upload")
+ensure_folders_exist([MVP_OUT_FOLDER, UPLOAD_OUT_FOLDER])
+SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
+SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
+SOURCE_AIFT_FILE = path.join(UPLOAD_OUT_FOLDER, "source_aift.csv")
 
 NUM_ROWS = 8
 
@@ -114,10 +120,7 @@ search_main_df["aift_id"] = search_main_df["aift_id"].astype("Int64")
 
 
 # Print
-UPLOAD_OUT_FOLDER = path.join(MVP_OUT_FOLDER, "to_upload")
-SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
-SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
-SOURCE_AIFT_FILE = path.join(UPLOAD_OUT_FOLDER, "source_aift.csv")
+
 
 search_main_df.to_csv(SEARCH_MAIN_FILE, header=True, index=True, encoding="utf-8")
 

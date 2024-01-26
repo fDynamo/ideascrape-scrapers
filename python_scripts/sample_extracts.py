@@ -1,14 +1,10 @@
-# Read both csv files
-# Select 5000 random ones
-# Write to new file
-
 import os.path as path
 import pandas as pd
 import sys
+from custom_helpers.get_paths import get_master_out_folder
 
 
-dir_path = path.dirname(path.realpath(__file__))
-MVP_OUT_FOLDER = path.join(dir_path, "out", "mvp")
+MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
 
 aift_extract = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
 aift_sample_out = path.join(MVP_OUT_FOLDER, "aift_sample.csv")
@@ -18,8 +14,12 @@ ph_sample_out = path.join(MVP_OUT_FOLDER, "ph_sample.csv")
 
 # Sample
 COUNT_SAMPLED_ROWS = 10
-if sys.argv[1]:
-    COUNT_SAMPLED_ROWS = int(sys.argv[1])
+
+try:
+    if sys.argv[1]:
+        COUNT_SAMPLED_ROWS = int(sys.argv[1])
+except:
+    pass
 
 aift_df = pd.read_csv(aift_extract)
 aift_sample = aift_df.sample(n=COUNT_SAMPLED_ROWS)

@@ -5,6 +5,7 @@ This repo contains scraping scripts for ideascrape
 ## Set up
 
 - Create a .env file with an env variable for master out folder `MASTER_OUT_FOLDER=<INSERT PATH HERE>`
+- Do the same in `/python_scripts` but also with `OPENAI_API_KEY`
 
 ## TO IMPROVE
 
