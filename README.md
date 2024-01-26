@@ -2,6 +2,10 @@
 
 This repo contains scraping scripts for ideascrape
 
+## Set up
+
+- Create a .env file with an env variable for master out folder `MASTER_OUT_FOLDER=<INSERT PATH HERE>`
+
 ## TO IMPROVE
 
 - Better logging

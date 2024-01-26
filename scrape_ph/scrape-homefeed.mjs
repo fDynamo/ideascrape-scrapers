@@ -1,5 +1,9 @@
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import {
+  ensureFoldersExist,
+  getMasterOutFolder,
+} from "../helpers/get-paths.js";
+import {
   getArgs,
   timeoutPromise,
   convertObjKeysToHeader,
@@ -7,12 +11,11 @@ import {
 import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { queryPH } from "./graphql-query.js";
 import { createObjectCsvWriter } from "csv-writer";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const OUT_FOLDER = join(getMasterOutFolder(), "ph");
+ensureFoldersExist([OUT_FOLDER]);
 
-const OUT_FOLDER = join(__dirname, "out");
 const RUN_DELAY = 1500;
 
 let START_CURSOR = 0;

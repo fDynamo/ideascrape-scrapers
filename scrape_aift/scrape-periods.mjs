@@ -1,17 +1,19 @@
 import puppeteer from "puppeteer-extra";
 import { logStartScrape, logEndScrape } from "../helpers/logger.js";
-import { dirname, join } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
 import { evaluateTasks } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader, getArgs } from "../helpers/index.js";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
+import {
+  ensureFoldersExist,
+  getMasterOutFolder,
+} from "../helpers/get-paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const OUT_FOLDER = join(__dirname, "out");
+const OUT_FOLDER = join(getMasterOutFolder(), "aift");
 const OUT_PERIODS_FOLDER = join(OUT_FOLDER, "periods");
+ensureFoldersExist([OUT_FOLDER, OUT_PERIODS_FOLDER]);
 
 const NAV_TIMEOUT = 5 * 60 * 1000;
 const WAIT_TIMEOUT = 5 * 60 * 1000;

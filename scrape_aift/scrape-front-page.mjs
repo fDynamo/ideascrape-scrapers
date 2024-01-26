@@ -7,11 +7,14 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader } from "../helpers/index.js";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
+import {
+  ensureFoldersExist,
+  getMasterOutFolder,
+} from "../helpers/get-paths.js";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-const OUT_FOLDER = join(__dirname, "out");
+const OUT_FOLDER = join(getMasterOutFolder(), "aift");
 const OUT_FRONT_FOLDER = join(OUT_FOLDER, "front");
+ensureFoldersExist([OUT_FOLDER, OUT_FRONT_FOLDER]);
 
 const NAV_TIMEOUT = 5 * 60 * 1000;
 const WAIT_TIMEOUT = 5 * 60 * 1000;
