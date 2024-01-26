@@ -1,9 +1,5 @@
 import pandas as pd
 import os.path as path
-from os import listdir
-from custom_helpers.url_formatters import calculate_unique_url, clean_url
-from custom_helpers.string_formatters import clean_text
-from custom_helpers.filter_urls import is_url_valid
 
 dir_path = path.dirname(path.realpath(__file__))
 MVP_OUT_FOLDER = path.join(dir_path, "out", "mvp")
@@ -12,6 +8,8 @@ PH_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "ph_sample_embeddings.csv"
 AIFT_SAMPLE_PATH = path.join(MVP_OUT_FOLDER, "aift_sample.csv")
 AIFT_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "aift_sample_embeddings.csv")
 
+
+NUM_ROWS = 8
 
 # Merge sample with embeddings
 ph_sample_df = pd.read_csv(PH_SAMPLE_PATH)
@@ -48,6 +46,11 @@ aift_extract_df = aift_extract_df[["aift_url", "rating"]]
 
 # Merge on post url
 aift_df = aift_df.merge(aift_extract_df, on="aift_url")
+
+# Sample dfs accordingly
+HALF_NUM_ROWS = round(NUM_ROWS / 2)
+aift_df = aift_df.sample(HALF_NUM_ROWS).reset_index(drop=True)
+ph_df = ph_df.sample(HALF_NUM_ROWS).reset_index(drop=True)
 
 # Split into search_main and source tables data
 ph_df = ph_df.rename_axis("ph_id").reset_index()
@@ -116,7 +119,6 @@ SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
 SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
 SOURCE_AIFT_FILE = path.join(UPLOAD_OUT_FOLDER, "source_aift.csv")
 
-search_main_df = search_main_df.sample(4000)
 search_main_df.to_csv(SEARCH_MAIN_FILE, header=True, index=True, encoding="utf-8")
 
 aift_source_df["count_rating"] = aift_source_df["count_rating"].astype(int)
