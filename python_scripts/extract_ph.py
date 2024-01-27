@@ -7,9 +7,9 @@ from custom_helpers.filter_urls import is_url_valid
 from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
 
 PH_OUT_PATH = path.join(get_master_out_folder(), "ph")
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
-ensure_folders_exist([MVP_OUT_FOLDER])
-OUT_FILE = path.join(MVP_OUT_FOLDER, "ph_extract.csv")
+OUT_FOLDER = path.join(get_master_out_folder(), "extracts")
+ensure_folders_exist([OUT_FOLDER])
+OUT_FILE = path.join(OUT_FOLDER, "ph_extract.csv")
 
 # Read all from all files
 all_ph_files = listdir(PH_OUT_PATH)

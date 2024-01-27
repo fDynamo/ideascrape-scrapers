@@ -11,11 +11,11 @@ from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
 AIFT_OUT_PATH = path.join(get_master_out_folder(), "aift")
 AIFT_PERIODS_PATH = path.join(AIFT_OUT_PATH, "periods")
 AIFT_POSTS_PATH = path.join(AIFT_OUT_PATH, "posts")
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
-ensure_folders_exist([MVP_OUT_FOLDER])
+OUT_FOLDER = path.join(get_master_out_folder(), "extracts")
+ensure_folders_exist([OUT_FOLDER])
 
-OUT_FILE = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
-UNSCRAPED_OUT = path.join(MVP_OUT_FOLDER, "aift_unscraped.csv")
+OUT_FILE = path.join(OUT_FOLDER, "aift_extract.csv")
+UNSCRAPED_OUT = path.join(OUT_FOLDER, "aift_unscraped.csv")
 
 # Read all from periods
 all_period_files = listdir(AIFT_PERIODS_PATH)
