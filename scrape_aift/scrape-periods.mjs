@@ -6,14 +6,9 @@ import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
 import { convertObjKeysToHeader, getArgs } from "../helpers/index.js";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
-import {
-  ensureFoldersExist,
-  getMasterOutFolder,
-} from "../helpers/get-paths.js";
+import { getOutFolder } from "../helpers/get-paths.js";
 
-const OUT_FOLDER = join(getMasterOutFolder(), "aift");
-const OUT_PERIODS_FOLDER = join(OUT_FOLDER, "periods");
-ensureFoldersExist([OUT_FOLDER, OUT_PERIODS_FOLDER]);
+const OUT_PERIODS_FOLDER = getOutFolder("scrape_aift_periods");
 
 const NAV_TIMEOUT = 5 * 60 * 1000;
 const WAIT_TIMEOUT = 5 * 60 * 1000;

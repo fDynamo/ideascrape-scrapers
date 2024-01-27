@@ -2,10 +2,7 @@ const fs = require("node:fs");
 const path = require("node:path");
 const { readCsvFile } = require("../helpers/read-csv");
 const { getDateFilename, getArgs } = require("../helpers/index");
-const {
-  getMasterOutFolder,
-  ensureFoldersExist,
-} = require("../helpers/get-paths");
+const { getOutFolder } = require("../helpers/get-paths");
 
 const VALID_EXTRACT_TYPES = ["all", "latest"];
 let extractType = VALID_EXTRACT_TYPES[1];
@@ -21,10 +18,8 @@ if (arg1) {
 }
 
 const main = async () => {
-  const OUT_FOLDER = path.join(getMasterOutFolder(), "aift");
-  const PERIODS_FOLDER = path.join(OUT_FOLDER, "periods");
-  const POST_URLS_FOLDER = path.join(OUT_FOLDER, "post_urls");
-  ensureFoldersExist([POST_URLS_FOLDER]);
+  const PERIODS_FOLDER = getOutFolder("scrape_aift_periods");
+  const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
 
   const files = fs.readdirSync(PERIODS_FOLDER);
 

@@ -1,8 +1,5 @@
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
-import {
-  ensureFoldersExist,
-  getMasterOutFolder,
-} from "../helpers/get-paths.js";
+import { getOutFolder } from "../helpers/get-paths.js";
 import {
   getArgs,
   timeoutPromise,
@@ -13,9 +10,7 @@ import { queryPH } from "./graphql-query.js";
 import { createObjectCsvWriter } from "csv-writer";
 import { join } from "path";
 
-const OUT_FOLDER = join(getMasterOutFolder(), "ph");
-ensureFoldersExist([OUT_FOLDER]);
-
+const OUT_FOLDER = getOutFolder("scrape_ph");
 const RUN_DELAY = 1500;
 
 let START_CURSOR = 0;

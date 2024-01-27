@@ -13,14 +13,10 @@ import path from "path";
 import { readFileSync, readdirSync } from "fs";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import registerGracefulExit from "../helpers/graceful-exit.js";
-import {
-  ensureFoldersExist,
-  getMasterOutFolder,
-} from "../helpers/get-paths.js";
+import { getOutFolder } from "../helpers/get-paths.js";
 
-const OUT_FOLDER = join(getMasterOutFolder(), "aift");
-const OUT_POSTS_FOLDER = join(OUT_FOLDER, "posts");
-ensureFoldersExist([OUT_FOLDER, OUT_POSTS_FOLDER]);
+const OUT_POSTS_FOLDER = getOutFolder("scrape_aift_posts");
+const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
 
 const NAV_TIMEOUT = 10 * 1000;
 const WAIT_TIMEOUT = 10 * 1000;
@@ -62,7 +58,6 @@ if (arg1) {
 
 // Get urls file path if latest
 if (urlsFilepath == LATEST_FILEPATH_KEY) {
-  const POST_URLS_FOLDER = path.join(OUT_FOLDER, "post_urls");
   const files = readdirSync(POST_URLS_FOLDER);
 
   let oldestFilename = "";

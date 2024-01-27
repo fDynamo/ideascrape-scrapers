@@ -1,20 +1,20 @@
 const dotenv = require("dotenv");
-const { existsSync, mkdirSync } = require("node:fs");
+const { existsSync, readFileSync } = require("node:fs");
+const { join } = require("node:path");
 dotenv.config();
 
-function getMasterOutFolder() {
-  return process.env.MASTER_OUT_FOLDER;
-}
-
-function ensureFoldersExist(folderpaths) {
-  folderpaths.forEach((folderpath) => {
-    if (!existsSync(folderpath)) {
-      mkdirSync(folderpath);
-    }
-  });
+function getOutFolder(key) {
+  const outRoot = process.env.MASTER_OUT_FOLDER;
+  if (!existsSync(outRoot)) {
+    throw new Error("No out folder created");
+  }
+  const jsonFile = join(outRoot, "directory-structure.json");
+  const fileContents = readFileSync(jsonFile, "utf-8");
+  const fileJson = JSON.parse(fileContents);
+  const folderPath = join(outRoot, fileJson[key]);
+  return folderPath;
 }
 
 module.exports = {
-  getMasterOutFolder,
-  ensureFoldersExist,
+  getOutFolder,
 };
