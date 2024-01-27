@@ -4,12 +4,11 @@ from os import listdir
 from custom_helpers.url_formatters import clean_url
 from custom_helpers.string_formatters import clean_text
 from custom_helpers.filter_urls import is_url_valid
-from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
+from custom_helpers.get_paths import get_out_folder
 
-PH_OUT_PATH = path.join(get_master_out_folder(), "ph")
-OUT_FOLDER = path.join(get_master_out_folder(), "extracts")
-ensure_folders_exist([OUT_FOLDER])
-OUT_FILE = path.join(OUT_FOLDER, "ph_extract.csv")
+PH_OUT_PATH = get_out_folder("scrape_ph")
+EXTRACTS_FOLDER = get_out_folder("source_extracts")
+OUT_FILE = path.join(EXTRACTS_FOLDER, "ph_extract.csv")
 
 # Read all from all files
 all_ph_files = listdir(PH_OUT_PATH)

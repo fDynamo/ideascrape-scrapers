@@ -1,10 +1,10 @@
 import os.path as path
 import pandas as pd
 import sys
-from custom_helpers.get_paths import get_master_out_folder
+from custom_helpers.get_paths import get_out_folder
 
 
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
+MVP_OUT_FOLDER = get_out_folder("mvp")
 
 aift_extract = path.join(MVP_OUT_FOLDER, "aift_extract.csv")
 aift_sample_out = path.join(MVP_OUT_FOLDER, "aift_sample.csv")

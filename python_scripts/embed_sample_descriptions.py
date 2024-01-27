@@ -1,12 +1,12 @@
 import os.path as path
 import csv
 from openai import OpenAI
-from custom_helpers.get_paths import get_master_out_folder
+from custom_helpers.get_paths import get_out_folder
 from dotenv import load_dotenv
 
 load_dotenv()
 
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
+MVP_OUT_FOLDER = get_out_folder("mvp")
 
 aift_sample = path.join(MVP_OUT_FOLDER, "aift_sample.csv")
 ph_sample = path.join(MVP_OUT_FOLDER, "ph_sample.csv")

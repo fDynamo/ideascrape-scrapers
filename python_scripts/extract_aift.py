@@ -5,20 +5,18 @@ from custom_helpers.url_formatters import clean_url
 from custom_helpers.string_formatters import camel_to_snake_case
 from custom_helpers.filter_urls import is_url_valid
 from custom_helpers.string_formatters import clean_text
-from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
+from custom_helpers.get_paths import get_out_folder
 
 
-AIFT_OUT_PATH = path.join(get_master_out_folder(), "aift")
-AIFT_PERIODS_PATH = path.join(AIFT_OUT_PATH, "periods")
-AIFT_POSTS_PATH = path.join(AIFT_OUT_PATH, "posts")
-OUT_FOLDER = path.join(get_master_out_folder(), "extracts")
-ensure_folders_exist([OUT_FOLDER])
+AIFT_PERIODS_PATH = get_out_folder("scrape_aift_periods")
+AIFT_POSTS_PATH = get_out_folder("scrape_aift_posts")
+OUT_FOLDER = get_out_folder("source_extracts")
 
 OUT_FILE = path.join(OUT_FOLDER, "aift_extract.csv")
 UNSCRAPED_OUT = path.join(OUT_FOLDER, "aift_unscraped.csv")
 
 # Read all from periods
-all_period_files = listdir(AIFT_PERIODS_PATH)
+all_period_files: list[str] = listdir(AIFT_PERIODS_PATH)
 all_period_files.sort()
 
 period_files = [

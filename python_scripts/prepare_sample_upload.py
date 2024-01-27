@@ -1,16 +1,16 @@
 import pandas as pd
 import os.path as path
-from custom_helpers.get_paths import get_master_out_folder, ensure_folders_exist
+from custom_helpers.get_paths import get_out_folder
 
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
+
+MVP_OUT_FOLDER = get_out_folder("mvp")
 PH_SAMPLE_PATH = path.join(MVP_OUT_FOLDER, "ph_sample.csv")
 PH_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "ph_sample_embeddings.csv")
 AIFT_SAMPLE_PATH = path.join(MVP_OUT_FOLDER, "aift_sample.csv")
 AIFT_SAMPLE_EMBEDDINGS_PATH = path.join(MVP_OUT_FOLDER, "aift_sample_embeddings.csv")
 
 
-UPLOAD_OUT_FOLDER = path.join(MVP_OUT_FOLDER, "to_upload")
-ensure_folders_exist([MVP_OUT_FOLDER, UPLOAD_OUT_FOLDER])
+UPLOAD_OUT_FOLDER = get_out_folder("mvp_to_upload")
 SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
 SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
 SOURCE_AIFT_FILE = path.join(UPLOAD_OUT_FOLDER, "source_aift.csv")

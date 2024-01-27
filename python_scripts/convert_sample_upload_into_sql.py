@@ -1,10 +1,10 @@
 import os.path as path
 import csv
 from custom_helpers.is_type import is_float
-from custom_helpers.get_paths import get_master_out_folder
+from custom_helpers.get_paths import get_out_folder
 
-MVP_OUT_FOLDER = path.join(get_master_out_folder(), "mvp")
-UPLOAD_OUT_FOLDER = path.join(MVP_OUT_FOLDER, "to_upload")
+MVP_OUT_FOLDER = get_out_folder("mvp")
+UPLOAD_OUT_FOLDER = get_out_folder("mvp_to_upload")
 
 SEARCH_MAIN_FILE = path.join(UPLOAD_OUT_FOLDER, "search_main.csv")
 SOURCE_PH_FILE = path.join(UPLOAD_OUT_FOLDER, "source_ph.csv")
