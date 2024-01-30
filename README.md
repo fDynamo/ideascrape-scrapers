@@ -10,6 +10,7 @@ This repo contains scraping scripts for ideascrape
 ## TO IMPROVE
 
 - Better logging
+  - Make it clear what scraper is doing what
 - Handle force stop in all
 - Change scrape outputs to camelcase
 - AIFT daily scrape should only scrape the month
