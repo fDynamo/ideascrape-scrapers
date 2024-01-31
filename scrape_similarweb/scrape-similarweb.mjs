@@ -16,10 +16,10 @@ import { readFileSync, readdirSync } from "fs";
 
 const OUT_SIMILARWEB_FOLDER = getOutFolder("scrape_similarweb");
 
-const NAV_TIMEOUT = 15 * 1000;
-const WAIT_TIMEOUT = 10 * 1000;
-const RUN_DELAY = 500;
-const RETRY_DELAY = 5 * 1000;
+const NAV_TIMEOUT = 1 * 60 * 1000;
+const WAIT_TIMEOUT = 20 * 1000;
+const RUN_DELAY = 2000;
+const RETRY_DELAY = 1 * 1000;
 const MAX_TRIES = 3;
 
 const SOURCE_FILEPATH_KEY = "source";
@@ -132,7 +132,9 @@ const main = async () => {
   let swPage = null;
 
   try {
-    browser = await puppeteer.launch({ headless: "new" });
+    const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
+    console.log(wsEndpoint);
+    browser = await puppeteer.connect({ browserWSEndpoint: wsEndpoint });
 
     swPage = await browser.newPage();
     await swPage.setViewport({
