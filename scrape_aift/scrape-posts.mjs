@@ -1,6 +1,5 @@
 import puppeteer from "puppeteer-extra";
 import { logStartScrape, logEndScrape } from "../helpers/logger.js";
-import { join } from "path";
 import { evaluatePostPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
@@ -9,14 +8,13 @@ import {
   getArgs,
   timeoutPromise,
 } from "../helpers/index.js";
-import path from "path";
+import { extname, join } from "path";
 import { readFileSync, readdirSync } from "fs";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { getOutFolder } from "../helpers/get-paths.js";
 
 const OUT_POSTS_FOLDER = getOutFolder("scrape_aift_posts");
-const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
 
 const NAV_TIMEOUT = 10 * 1000;
 const WAIT_TIMEOUT = 10 * 1000;
@@ -51,19 +49,20 @@ if (arg1) {
       START_INDEX = parseInt(arg2);
       END_INDEX = parseInt(arg3);
     } else {
-      START_INDEX = parseInt(arg2);
+      END_INDEX = parseInt(arg2);
     }
   }
 }
 
 // Get urls file path if latest
 if (urlsFilepath == LATEST_FILEPATH_KEY) {
+  const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
   const files = readdirSync(POST_URLS_FOLDER);
 
   let oldestFilename = "";
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (path.extname(file) != ".json") continue;
+    if (extname(file) != ".json") continue;
 
     if (!oldestFilename) oldestFilename = file;
     else {
@@ -71,7 +70,7 @@ if (urlsFilepath == LATEST_FILEPATH_KEY) {
     }
   }
 
-  const oldestFilepath = path.join(POST_URLS_FOLDER, oldestFilename);
+  const oldestFilepath = join(POST_URLS_FOLDER, oldestFilename);
   urlsFilepath = oldestFilepath;
 }
 
