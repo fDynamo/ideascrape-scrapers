@@ -2,12 +2,8 @@ const axios = require("axios");
 
 const OPERATION_NAME = "HomePage";
 const MAIN_QUERY = `
-query HomePage($cursor: String, $kind: HomefeedKindEnum!, $filters: HomefeedFiltersInput!) {
-  ...HomePageQuery
-}
-
-fragment HomePageQuery on Query {
-  homefeed(after: $cursor, kind: $kind, filters: $filters) {
+query HomePage($cursor: String, $kind: HomefeedKindEnum!) {
+  homefeed(after: $cursor, kind: $kind) {
     kind
     pageInfo {
       hasNextPage
@@ -123,7 +119,6 @@ async function queryPH(cursor) {
   const variables = {
     kind: "ALL",
     cursor: "" + cursor,
-    filters: {},
   };
   const res = await axios.post("https://www.producthunt.com/frontend/graphql", {
     operationName: OPERATION_NAME,
