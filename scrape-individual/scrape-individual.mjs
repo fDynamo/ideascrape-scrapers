@@ -7,12 +7,14 @@ import { createObjectCsvWriter } from "csv-writer";
 import {
   convertObjKeysToHeader,
   getArgs,
+  getPercentageString,
   timeoutPromise,
 } from "../helpers/index.js";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
-import { readFileSync, readdirSync } from "fs";
+import { readdirSync } from "fs";
+import { readCsvFile } from "../helpers/read-csv.js";
 
 const OUT_INDIVIDUAL_FOLDER = getOutFolder("scrape_individual");
 
@@ -20,7 +22,8 @@ const NAV_TIMEOUT = 1 * 60 * 1000;
 const WAIT_TIMEOUT = 20 * 1000;
 const RUN_DELAY = 100;
 const RETRY_DELAY = 1 * 1000;
-const MAX_TRIES = 3;
+const MAX_TRIES = 2;
+const MAX_SUCCESSIVE_ERRORS = 10;
 
 const SOURCE_FILEPATH_KEY = "source";
 const LATEST_FAILED_FILEPATH_KEY = "latest_failed";
@@ -49,7 +52,7 @@ if (arg1) {
       startIndex = parseInt(arg2);
       endIndex = parseInt(arg3);
     } else {
-      endIndex = parseInt(arg2);
+      startIndex = parseInt(arg2);
     }
   }
 }
@@ -90,8 +93,9 @@ if (
   urlsFilepath = oldestFilepath;
 }
 
-const urlsFileContents = readFileSync(urlsFilepath, "utf-8");
-const urls = urlsFileContents.split("\n");
+// Read url file
+const urlsFileContents = await readCsvFile(urlsFilepath);
+const urls = urlsFileContents.map((row) => row.url);
 const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
 
 puppeteer.use(StealthPlugin());
@@ -116,6 +120,7 @@ const main = async () => {
   let urlToScrape = "";
   let urlToScrapeIndex = startIndex;
   let countSuccessfulScrapes = 0;
+  let countFailedScrapes = 0;
 
   // csv writers
   let csvWriter = null;
@@ -124,16 +129,41 @@ const main = async () => {
       OUT_INDIVIDUAL_FOLDER,
       scriptStartedFilename + FAILED_FILE_SUFFIX + ".csv"
     ),
-    header: [{ id: "url", title: "url" }],
+    header: [
+      { id: "url", title: "url" },
+      { id: "error", title: "error" },
+    ],
   });
 
   // Puppeteer variables
   let browser = null;
   let page = null;
 
+  const initializePage = async (browser) => {
+    const page = await browser.newPage();
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1,
+    });
+    await page.setRequestInterception(true);
+    await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+    page.on("request", (request) => {
+      if (request.resourceType() === "image") {
+        // If the request is for an image, block it
+        request.abort();
+      } else {
+        // If it's not an image request, allow it to continue
+        request.continue();
+      }
+    });
+    return page;
+  };
+
   try {
-    const useBrightData = true;
-    if (useBrightData) {
+    // Initialize browser and page
+    const USE_BRIGHT_DATA = false;
+    if (USE_BRIGHT_DATA) {
       const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
       browser = await puppeteer.connect({
         headless: "new",
@@ -143,22 +173,17 @@ const main = async () => {
       browser = await puppeteer.launch({ headless: "new" });
     }
 
-    page = await browser.newPage();
-    await page.setViewport({
-      width: 1920,
-      height: 1080,
-      deviceScaleFactor: 1,
-    });
-    page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+    page = await initializePage(browser);
 
-    const requestStartedDate = new Date();
-    const requestStartedStr = requestStartedDate.toISOString();
+    // Variables
+    const FORCED_STOP_ERROR_STRING = "Forced stop";
+    const SUCCESSIVE_ERROR_STRING = "Max successive errors reached!";
 
-    let triesCounter = 0;
+    let countTries = 0;
+    let countSuccessiveErrors = 0;
 
     // Register graceful exit
     let forcedStop = false;
-    const FORCED_STOP_ERROR_STRING = "Forced stop";
     registerGracefulExit(() => {
       forcedStop = true;
     });
@@ -170,11 +195,17 @@ const main = async () => {
           throw new Error(FORCED_STOP_ERROR_STRING);
         }
 
-        urlToScrape = urls[urlToScrapeIndex];
-        if (urlToScrape == "url") continue;
+        // Handle max successive errors
+        if (countSuccessiveErrors >= MAX_SUCCESSIVE_ERRORS) {
+          throw new Error(SUCCESSIVE_ERROR_STRING);
+        }
 
-        urlToScrape = "https://" + urlToScrape;
-        console.log("START", urlToScrape);
+        urlToScrape = "https://" + urls[urlToScrapeIndex];
+        console.log("START", urlToScrapeIndex, urlToScrape);
+
+        const requestStartedDate = new Date();
+        const requestStartedStr = requestStartedDate.toISOString();
+
         await page.goto(urlToScrape);
 
         const results = await page.evaluate(evaluateGenericPage);
@@ -186,6 +217,8 @@ const main = async () => {
           scriptStartedAt: scriptStartedStr,
           startedAt: requestStartedStr,
           endedAt: requestEndedStr,
+          urlToScrape,
+          urlToScrapeIndex,
         };
         const recordToWrite = arraySafeFlatten(results);
 
@@ -198,44 +231,58 @@ const main = async () => {
         }
         await csvWriter.writeRecords([recordToWrite]);
 
-        countSuccessfulScrapes += 1;
-
-        console.log("END", urlToScrape);
-
-        // Print percentage
-        const normalizedIndex = urlToScrapeIndex + 1 - startIndex;
-        const normalizedLastIndex = lastIndex - startIndex;
-        const doneFraction = normalizedIndex / normalizedLastIndex;
-        const donePercentage = doneFraction * 100;
-        const donePercentageString = donePercentage.toFixed(2) + "%";
+        // Print progress
+        console.log("END", urlToScrapeIndex, urlToScrape);
+        const donePercentageString = getPercentageString(
+          urlToScrapeIndex + 1,
+          startIndex,
+          lastIndex
+        );
         console.log("PROGRESS", donePercentageString);
 
+        // Reset variables
+        countTries = 0;
+        countSuccessiveErrors = 0;
+
+        countSuccessfulScrapes += 1;
         await timeoutPromise(RUN_DELAY);
       } catch (error) {
         const errString = error + "";
-        const NAV_ERROR_STRING = " Navigation timeout of";
-        const isNavTimeout = errString.includes(NAV_ERROR_STRING);
-        const isForcedStop = errString.includes(FORCED_STOP_ERROR_STRING);
-
         console.log("ERROR", error);
-        triesCounter++;
 
+        const isForcedStop = errString.includes(FORCED_STOP_ERROR_STRING);
         if (isForcedStop) {
           throw error;
         }
 
-        if (isNavTimeout && triesCounter < MAX_TRIES) {
+        const isSuccessiveErrorMaxReached = errString.includes(
+          SUCCESSIVE_ERROR_STRING
+        );
+        if (isSuccessiveErrorMaxReached) {
+          throw error;
+        }
+
+        const NAV_ERROR_STRING = " Navigation timeout of";
+        const isNavTimeout = errString.includes(NAV_ERROR_STRING);
+
+        countTries++;
+
+        if (isNavTimeout && countTries < MAX_TRIES) {
           await page.close();
-          page = await browser.newPage();
-          page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+          page = await initializePage(browser);
+          urlToScrapeIndex--;
+
           await timeoutPromise(RETRY_DELAY);
-          i--;
         } else {
           console.log("URL SCRAPE FAILED!", urlToScrape);
-          triesCounter = 0;
-
+          countTries = 0;
           // Write url in error file
-          failedCsvWriter.writeRecords([{ url: urlToScrape }]);
+          failedCsvWriter.writeRecords([
+            { url: urlToScrape, error: errString },
+          ]);
+
+          countFailedScrapes += 1;
+          countSuccessiveErrors += 1;
 
           await timeoutPromise(RUN_DELAY);
         }
@@ -276,6 +323,7 @@ const main = async () => {
   endLogContents.lastUrlToScrape = urlToScrape;
   endLogContents.lastUrlToScrapeIndex = urlToScrapeIndex;
   endLogContents.countSuccessfulScrapes = countSuccessfulScrapes;
+  endLogContents.countFailedScrapes = countFailedScrapes;
 
   logEndScrape(OUT_INDIVIDUAL_FOLDER, startDate, endLogContents);
 
