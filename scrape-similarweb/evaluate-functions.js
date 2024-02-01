@@ -1,4 +1,4 @@
-const evaluateSimilarWebPage = async (tasksSelector) => {
+const evaluateSimilarWebPage = async () => {
   let urlTitle = "";
   let dataDate = "";
   const overviewContentSelector =
