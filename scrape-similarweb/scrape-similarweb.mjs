@@ -7,275 +7,324 @@ import { createObjectCsvWriter } from "csv-writer";
 import {
   convertObjKeysToHeader,
   getArgs,
+  getPercentageString,
   timeoutPromise,
 } from "../helpers/index.js";
 import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
-import { readFileSync, readdirSync } from "fs";
+import { readCsvFile } from "../helpers/read-csv.js";
+import { createRunLogger } from "../helpers/run-logger.mjs";
 
-const OUT_SIMILARWEB_FOLDER = getOutFolder("scrape_similarweb");
+const main = async () => {
+  // Create runLogger
+  const OUT_FOLDER = getOutFolder("scrape_similarweb");
+  const runLogger = await createRunLogger("scrape_similarweb", OUT_FOLDER);
 
-const NAV_TIMEOUT = 1 * 60 * 1000;
-const WAIT_TIMEOUT = 20 * 1000;
-const RUN_DELAY = 2000;
-const RETRY_DELAY = 1 * 1000;
-const MAX_TRIES = 3;
-
-const SOURCE_FILEPATH_KEY = "source";
-const LATEST_FAILED_FILEPATH_KEY = "latest_failed";
-const LATEST_NOT_REACHED_FILEPATH_KEY = "latest_not_reached";
-
-const FAILED_FILE_SUFFIX = "-failed";
-const NOT_REACHED_FILE_SUFFIX = "-not-reached";
-
-let urlsFilepath = SOURCE_FILEPATH_KEY;
-let startIndex = 0;
-let endIndex = 0;
-
-// Handle arguments
-const cliArgs = getArgs();
-const arg1 = cliArgs[0];
-
-if (arg1) {
-  urlsFilepath = arg1;
-
-  // Parse second and third args for start and stop
-  const arg2 = cliArgs[1];
-  const arg3 = cliArgs[2];
-
-  if (arg2) {
-    if (arg3) {
-      startIndex = parseInt(arg2);
-      endIndex = parseInt(arg3);
-    } else {
-      endIndex = parseInt(arg2);
-    }
-  }
-}
-
-// Get urls file path if source
-if (urlsFilepath == SOURCE_FILEPATH_KEY) {
-  urlsFilepath = join(
+  // High level file constants
+  const SOURCE_FILEPATH = join(
     getOutFolder("source_extracts"),
     "similarweb_urls_extract.csv"
   );
-}
-// Get urls file path if latest
-if (
-  urlsFilepath == LATEST_FAILED_FILEPATH_KEY ||
-  urlsFilepath == LATEST_NOT_REACHED_FILEPATH_KEY
-) {
-  const files = readdirSync(OUT_SIMILARWEB_FOLDER);
-
-  let oldestFilename = "";
-  const fileSuffix =
-    urlsFilepath == LATEST_FAILED_FILEPATH_KEY
-      ? FAILED_FILE_SUFFIX
-      : NOT_REACHED_FILE_SUFFIX;
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (extname(file) != ".csv" || !file.includes(fileSuffix)) continue;
-
-    if (!oldestFilename) oldestFilename = file;
-    else {
-      if (file > oldestFilename) oldestFilename = file;
-    }
-  }
-
-  if (!oldestFilename) {
-    throw new Error("File not found for " + urlsFilepath);
-  }
-  const oldestFilepath = join(OUT_SIMILARWEB_FOLDER, oldestFilename);
-  urlsFilepath = oldestFilepath;
-}
-
-const urlsFileContents = readFileSync(urlsFilepath, "utf-8");
-const urls = urlsFileContents.split("\n");
-const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
-
-puppeteer.use(StealthPlugin());
-
-const main = async () => {
-  console.log("scrape-similarweb started");
-
-  const startDate = new Date();
-  const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
-    OUT_SIMILARWEB_FOLDER,
-    startDate,
-    {
-      cliArgs,
-      urlsFilepath: urlsFilepath,
-      countUrlsToScrape: lastIndex - startIndex,
-    }
+  const OUT_FILE_PATH = join(OUT_FOLDER, runLogger.baseFileName + ".csv");
+  const FAILED_FILE_PATH = join(
+    OUT_FOLDER,
+    runLogger.baseFileName + "-failed.csv"
   );
 
-  const endLogContents = {};
+  // Run constants
+  const NAV_TIMEOUT = 1 * 60 * 1000;
+  const WAIT_TIMEOUT = 20 * 1000;
+  const RUN_DELAY = 100;
+  const RETRY_DELAY = 1 * 1000;
+  const MAX_TRIES = 2;
+  const MAX_SUCCESSIVE_ERRORS = 10;
 
-  // Variables that are logged at the end
-  let urlToScrape = "";
-  let urlToScrapeIndex = startIndex;
-  let countSuccessfulScrapes = 0;
+  // Error constants
+  const FORCED_STOP_ERROR_STRING = "Forced stop";
+  const SUCCESSIVE_ERROR_STRING = "Max successive errors reached!";
+  const NAV_ERROR_SUBSTRING = " Navigation timeout of";
 
-  // csv writers
-  let csvWriter = null;
-  const failedCsvWriter = createObjectCsvWriter({
-    path: join(
-      OUT_SIMILARWEB_FOLDER,
-      scriptStartedFilename + FAILED_FILE_SUFFIX + ".csv"
-    ),
-    header: [{ id: "url", title: "url" }],
+  // CLI constants
+  const CLI_ARG_KEY_SOURCE = "source";
+
+  let urlsFilepath = CLI_ARG_KEY_SOURCE;
+  let startIndex = 0;
+  let endIndex = 0;
+
+  // Handle CLI
+  const cliArgs = getArgs();
+  const arg1 = cliArgs[0];
+
+  if (arg1) {
+    urlsFilepath = arg1;
+
+    // Parse second and third args for start and stop
+    const arg2 = cliArgs[1];
+    const arg3 = cliArgs[2];
+
+    if (arg2) {
+      if (arg3) {
+        startIndex = parseInt(arg2);
+        endIndex = parseInt(arg3);
+      } else {
+        startIndex = parseInt(arg2);
+      }
+    }
+  }
+
+  // Get urls file path if source
+  if (urlsFilepath == CLI_ARG_KEY_SOURCE) {
+    urlsFilepath = SOURCE_FILEPATH;
+  }
+
+  // Read url file
+  const urlsFileContents = await readCsvFile(urlsFilepath);
+  const urls = urlsFileContents.map((row) => row.url);
+  const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+
+  // Log start
+  await runLogger.addToStartLog({
+    cliArgs,
+    urlsFilepath: urlsFilepath,
+    countUrlsToScrape: lastIndex - startIndex,
   });
 
-  // Puppeteer variables
-  let browser = null;
-  let swPage = null;
+  // Puppeteer initializers
+  const initializeBrowser = async () => {
+    const USE_BRIGHT_DATA = false;
+    if (USE_BRIGHT_DATA) {
+      const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
+      return await puppeteer.connect({
+        headless: "new",
+        browserWSEndpoint: wsEndpoint,
+      });
+    } else {
+      return await puppeteer.launch({ headless: "new" });
+    }
+  };
 
-  try {
-    const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
-    console.log(wsEndpoint);
-    browser = await puppeteer.connect({ browserWSEndpoint: wsEndpoint });
-
-    swPage = await browser.newPage();
-    await swPage.setViewport({
+  const initializePage = async (browser) => {
+    const page = await browser.newPage();
+    await page.setViewport({
       width: 1920,
       height: 1080,
       deviceScaleFactor: 1,
     });
-    swPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
-
-    const requestStartedDate = new Date();
-    const requestStartedStr = requestStartedDate.toISOString();
-
-    let triesCounter = 0;
-
-    // Register graceful exit
-    let forcedStop = false;
-    const FORCED_STOP_ERROR_STRING = "Forced stop";
-    registerGracefulExit(() => {
-      forcedStop = true;
+    await page.setRequestInterception(true);
+    await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+    page.on("request", (request) => {
+      if (request.resourceType() === "image") {
+        // If the request is for an image, block it
+        request.abort();
+      } else {
+        // If it's not an image request, allow it to continue
+        request.continue();
+      }
     });
+    return page;
+  };
 
-    for (; urlToScrapeIndex < lastIndex; urlToScrapeIndex++) {
+  // Initialize browser and page
+  puppeteer.use(StealthPlugin());
+  const browser = await initializeBrowser();
+  let page = await initializePage(browser);
+
+  // Variables that are logged at the end
+  let urlToScrape = "";
+  let runIndex = 0;
+  let countSuccessfulScrapes = 0;
+  let countFailedScrapes = 0;
+  let countTries = 0;
+  let countSuccessiveErrors = 0;
+
+  // CSV writers related
+  let mainCsvWriter = null;
+  const failedCsvWriter = createObjectCsvWriter({
+    path: FAILED_FILE_PATH,
+    header: [
+      { id: "url", title: "url" },
+      { id: "error", title: "error" },
+    ],
+  });
+  const endLogContents = {};
+
+  // Register graceful exit
+  let forcedStop = false;
+  registerGracefulExit(() => {
+    forcedStop = true;
+    browser.close();
+  });
+
+  try {
+    for (runIndex = startIndex; runIndex < lastIndex; runIndex++) {
       try {
-        // Handle forced stop
-        if (forcedStop) {
-          throw new Error(FORCED_STOP_ERROR_STRING);
+        // Handle max successive errors
+        if (countSuccessiveErrors >= MAX_SUCCESSIVE_ERRORS) {
+          throw new Error(SUCCESSIVE_ERROR_STRING);
         }
 
-        urlToScrape = urls[urlToScrapeIndex];
-        if (urlToScrape == "url") continue;
-
-        console.log("START", urlToScrape);
+        urlToScrape = urls[runIndex];
         const similarwebUrl =
           "https://www.similarweb.com/website/" + urlToScrape;
-        await swPage.goto(similarwebUrl);
+        await runLogger.addToLog({
+          runIndex,
+          urlToScrape,
+          status: "start",
+        });
 
+        // Make request
+        const requestStartedDate = new Date();
+        const requestStartedStr = requestStartedDate.toISOString();
+
+        await page.goto(similarwebUrl);
         const overviewSelector = "div.wa-overview__row";
-        await swPage.waitForSelector(overviewSelector, {
+        await page.waitForSelector(overviewSelector, {
           timeout: WAIT_TIMEOUT,
         });
 
-        const results = await swPage.evaluate(evaluateSimilarWebPage);
-
+        const results = await page.evaluate(evaluateSimilarWebPage);
         const requestEndedDate = new Date();
         const requestEndedStr = requestEndedDate.toISOString();
+        const requestDurationS =
+          (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
+        // Process results
         results._reqMeta = {
-          scriptStartedAt: scriptStartedStr,
-          startedAt: requestStartedStr,
-          endedAt: requestEndedStr,
+          urlToScrape,
         };
         const recordToWrite = arraySafeFlatten(results);
 
         // Write results
-        if (!csvWriter) {
-          csvWriter = createObjectCsvWriter({
-            path: join(OUT_SIMILARWEB_FOLDER, scriptStartedFilename + ".csv"),
+        if (!mainCsvWriter) {
+          mainCsvWriter = createObjectCsvWriter({
+            path: OUT_FILE_PATH,
             header: convertObjKeysToHeader(recordToWrite),
           });
         }
-        await csvWriter.writeRecords([recordToWrite]);
+        await mainCsvWriter.writeRecords([recordToWrite]);
+
+        // Print progress
+        const donePercentageString = getPercentageString(
+          runIndex + 1,
+          startIndex,
+          lastIndex
+        );
+
+        // Write to log
+        await runLogger.addToLog({
+          runIndex,
+          urlToScrape,
+          status: "success",
+          percent: donePercentageString,
+          reqStartedAt: requestStartedStr,
+          reqEndedAt: requestEndedStr,
+          reqDurationS: requestDurationS,
+        });
+
+        // Reset variables
+        countTries = 0;
+        countSuccessiveErrors = 0;
 
         countSuccessfulScrapes += 1;
-
-        console.log("END", urlToScrape);
-
-        // Print percentage
-        const normalizedIndex = urlToScrapeIndex + 1 - startIndex;
-        const normalizedLastIndex = lastIndex - startIndex;
-        const doneFraction = normalizedIndex / normalizedLastIndex;
-        const donePercentage = doneFraction * 100;
-        const donePercentageString = donePercentage.toFixed(2) + "%";
-        console.log("PROGRESS", donePercentageString);
-
         await timeoutPromise(RUN_DELAY);
+
+        // Handle forced stop
+        if (forcedStop) {
+          throw new Error(FORCED_STOP_ERROR_STRING);
+        }
       } catch (error) {
+        // Handle forced stop in case of target closed
+        if (forcedStop) {
+          throw new Error(FORCED_STOP_ERROR_STRING);
+        }
+
         const errString = error + "";
-        const NAV_ERROR_STRING = " Navigation timeout of";
-        const isNavTimeout = errString.includes(NAV_ERROR_STRING);
+
+        // Write to log
+        await runLogger.addToLog({
+          runIndex,
+          urlToScrape,
+          status: "error",
+          error: errString,
+        });
+
+        // Decide whether to throw error or not
         const isForcedStop = errString.includes(FORCED_STOP_ERROR_STRING);
-
-        console.log("ERROR", error);
-        triesCounter++;
-
-        if (isForcedStop) {
+        const isSuccessiveErrorMaxReached = errString.includes(
+          SUCCESSIVE_ERROR_STRING
+        );
+        if (isForcedStop || isSuccessiveErrorMaxReached) {
           throw error;
         }
 
-        if (isNavTimeout && triesCounter < MAX_TRIES) {
-          await swPage.close();
-          swPage = await browser.newPage();
-          swPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
+        // Retry on nav time outs
+        const isNavTimeout = errString.includes(NAV_ERROR_SUBSTRING);
+
+        countTries++;
+
+        if (isNavTimeout && countTries < MAX_TRIES) {
+          // Reinitialize page
+          await page.close();
+          page = await initializePage(browser);
+
+          // Write to log
+          await runLogger.addToLog({
+            runIndex,
+            urlToScrape,
+            status: "retrying",
+            countTries,
+          });
+
+          // Get ready to retry
+          runIndex--;
           await timeoutPromise(RETRY_DELAY);
-          i--;
         } else {
-          console.log("URL SCRAPE FAILED!", urlToScrape);
-          triesCounter = 0;
+          countTries = 0;
+
+          // Write to log
+          await runLogger.addToLog({
+            runIndex,
+            urlToScrape,
+            status: "FAILED!",
+            error: errString,
+          });
 
           // Write url in error file
-          failedCsvWriter.writeRecords([{ url: urlToScrape }]);
+          await failedCsvWriter.writeRecords([
+            { url: urlToScrape, error: errString },
+          ]);
+
+          countFailedScrapes += 1;
+          countSuccessiveErrors += 1;
+
+          await timeoutPromise(RUN_DELAY);
         }
+
         continue;
       }
     }
 
+    // Process ending variables
     urlToScrape = "";
-    urlToScrapeIndex++;
-
+    runIndex++;
     endLogContents.message = "Success";
   } catch (error) {
     endLogContents.error = "" + error;
   }
 
-  if (swPage) await swPage.close();
-  if (browser) await browser.close();
-
-  // Write remaining urls
-  if (urlToScrapeIndex < urls.length) {
-    const remainingUrls = urls.slice(urlToScrapeIndex);
-    const toRecordNotReached = remainingUrls.map((urlToScrape) => {
-      return { url: urlToScrape };
-    });
-    if (toRecordNotReached.length) {
-      const notReachedCsvWriter = createObjectCsvWriter({
-        path: join(
-          OUT_SIMILARWEB_FOLDER,
-          scriptStartedFilename + NOT_REACHED_FILE_SUFFIX + ".csv"
-        ),
-        header: [{ id: "url", title: "url" }],
-      });
-      await notReachedCsvWriter.writeRecords(toRecordNotReached);
-    }
-  }
+  try {
+    if (browser) await browser.close();
+  } catch {}
 
   endLogContents.lastUrlToScrape = urlToScrape;
-  endLogContents.lastUrlToScrapeIndex = urlToScrapeIndex;
+  endLogContents.lastRunIndex = runIndex;
   endLogContents.countSuccessfulScrapes = countSuccessfulScrapes;
+  endLogContents.countFailedScrapes = countFailedScrapes;
 
-  logEndScrape(OUT_SIMILARWEB_FOLDER, startDate, endLogContents);
+  await runLogger.addToEndLog(endLogContents);
+  await runLogger.stopRunLogger();
 
-  console.log("scrape-similarweb ended");
   process.exit();
 };
 
