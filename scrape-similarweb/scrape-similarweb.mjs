@@ -1,6 +1,5 @@
 import puppeteer from "puppeteer-extra";
-import { logStartScrape, logEndScrape } from "../helpers/logger.js";
-import { extname, join } from "path";
+import { join } from "path";
 import { evaluateSimilarWebPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { createObjectCsvWriter } from "csv-writer";
