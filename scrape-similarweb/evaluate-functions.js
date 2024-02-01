@@ -221,7 +221,23 @@ const evaluateSimilarWebPage = async () => {
     otherEngagmentInfo: engagementInfo,
     countriesData,
   };
-  return toReturn;
+
+  // Format toReturn correctly
+  const finalToReturn = {};
+
+  Object.entries(toReturn).forEach((item) => {
+    const key = item[0];
+    const val = item[1];
+    let newVal = val;
+    if (typeof val === "string" || val instanceof String) {
+      if (val.includes("- -")) {
+        newVal = "";
+      }
+    }
+    finalToReturn[key] = newVal;
+  });
+
+  return finalToReturn;
 };
 
 module.exports = {

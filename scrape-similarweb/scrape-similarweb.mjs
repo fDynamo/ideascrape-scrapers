@@ -14,6 +14,7 @@ import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
+import UserAgent from "user-agents";
 
 const main = async () => {
   // Create runLogger
@@ -32,17 +33,23 @@ const main = async () => {
   );
 
   // Run constants
-  const NAV_TIMEOUT = 1 * 60 * 1000;
-  const WAIT_TIMEOUT = 20 * 1000;
-  const RUN_DELAY = 100;
+  const NAV_TIMEOUT = 2 * 60 * 1000;
+  const WAIT_TIMEOUT = 2 * 60 * 1000;
+  const RUN_DELAY = 2 * 1000;
   const RETRY_DELAY = 1 * 1000;
   const MAX_TRIES = 2;
   const MAX_SUCCESSIVE_ERRORS = 10;
+  const MAX_CAPTCHA_TRIES = 5;
+  const REFRESH_DELAY = 5 * 1000;
+  const REQUEST_PER_REFRESH = 5;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
   const SUCCESSIVE_ERROR_STRING = "Max successive errors reached!";
   const NAV_ERROR_SUBSTRING = " Navigation timeout of";
+  const NO_VISITS_ERROR_STRING = "No total visits in data";
+  const NOT_FOUND_ERROR_STRING = "Similarweb not found";
+  const CAPTCHA_BLOCKED_ERROR_STRING = "Captcha blocked too many times!";
 
   // CLI constants
   const CLI_ARG_KEY_SOURCE = "source";
@@ -91,20 +98,19 @@ const main = async () => {
 
   // Puppeteer initializers
   const initializeBrowser = async () => {
-    const USE_BRIGHT_DATA = false;
-    if (USE_BRIGHT_DATA) {
-      const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
-      return await puppeteer.connect({
-        headless: "new",
-        browserWSEndpoint: wsEndpoint,
-      });
-    } else {
-      return await puppeteer.launch({ headless: "new" });
-    }
+    const proxyServer = process.env.BRIGHTDATA_DATA_CENTER_HOST_URL;
+    return await puppeteer.launch({
+      headless: false,
+      args: [`--proxy-server=${proxyServer}`, `--ignore-certificate-errors`],
+    });
   };
 
   const initializePage = async (browser) => {
     const page = await browser.newPage();
+
+    const userAgent = new UserAgent().toString();
+    await page.setUserAgent(userAgent);
+
     await page.setViewport({
       width: 1920,
       height: 1080,
@@ -112,6 +118,12 @@ const main = async () => {
     });
     await page.setRequestInterception(true);
     await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+
+    await page.authenticate({
+      username: process.env.BRIGHTDATA_DATA_CENTER_USERNAME,
+      password: process.env.BRIGHTDATA_DATA_CENTER_PASSWORD,
+    });
+
     page.on("request", (request) => {
       if (request.resourceType() === "image") {
         // If the request is for an image, block it
@@ -126,8 +138,21 @@ const main = async () => {
 
   // Initialize browser and page
   puppeteer.use(StealthPlugin());
-  const browser = await initializeBrowser();
+  let browser = await initializeBrowser();
   let page = await initializePage(browser);
+
+  // Puppeteer functions
+  const refreshBrowser = async () => {
+    await browser.close();
+    browser = await initializeBrowser();
+    page = await initializePage(browser);
+
+    // Write to log
+    await runLogger.addToLog({
+      message: "refreshing browser",
+    });
+    await timeoutPromise(REFRESH_DELAY);
+  };
 
   // Variables that are logged at the end
   let urlToScrape = "";
@@ -136,6 +161,7 @@ const main = async () => {
   let countFailedScrapes = 0;
   let countTries = 0;
   let countSuccessiveErrors = 0;
+  let countCaptchaTries = 0;
 
   // CSV writers related
   let mainCsvWriter = null;
@@ -177,16 +203,93 @@ const main = async () => {
         const requestStartedStr = requestStartedDate.toISOString();
 
         await page.goto(similarwebUrl);
-        const overviewSelector = "div.wa-overview__row";
-        await page.waitForSelector(overviewSelector, {
-          timeout: WAIT_TIMEOUT,
+
+        await runLogger.addToLog({
+          message: "Successful navigation.",
         });
 
+        // Check page type
+        const PAGE_TYPE = {
+          VALID: "valid",
+          NOT_FOUND: "notFound",
+          CAPTCHA: "captcha",
+        };
+
+        const validPagePromise = new Promise(async (resolve, reject) => {
+          try {
+            const overviewSelector = "div.wa-overview__row";
+            await page.waitForSelector(overviewSelector, {
+              timeout: WAIT_TIMEOUT,
+            });
+
+            resolve(PAGE_TYPE.VALID);
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+        const errorPagePromise = new Promise(async (resolve, reject) => {
+          try {
+            const errorPageSelector = "h1.error__title";
+            await page.waitForSelector(errorPageSelector, {
+              timeout: WAIT_TIMEOUT,
+            });
+
+            resolve(PAGE_TYPE.NOT_FOUND);
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+        const captchaPagePromise = new Promise(async (resolve, reject) => {
+          try {
+            const captchaPageSelector =
+              "div.sec-container div#sec-text-container";
+            await page.waitForSelector(captchaPageSelector, {
+              timeout: WAIT_TIMEOUT,
+            });
+
+            resolve(PAGE_TYPE.CAPTCHA);
+          } catch (error) {
+            reject(error);
+          }
+        });
+
+        const pageType = await Promise.race([
+          validPagePromise,
+          errorPagePromise,
+          captchaPagePromise,
+        ]);
+
+        await runLogger.addToLog({
+          pageType,
+        });
+
+        if (pageType == PAGE_TYPE.NOT_FOUND) {
+          throw new Error(NOT_FOUND_ERROR_STRING);
+        } else if (pageType == PAGE_TYPE.CAPTCHA) {
+          countCaptchaTries++;
+          if (countCaptchaTries >= MAX_CAPTCHA_TRIES) {
+            throw new Error(CAPTCHA_BLOCKED_ERROR_STRING);
+          }
+
+          // Refresh and redo this iteration
+          await refreshBrowser();
+          runIndex--;
+          continue;
+        }
+
         const results = await page.evaluate(evaluateSimilarWebPage);
+
         const requestEndedDate = new Date();
         const requestEndedStr = requestEndedDate.toISOString();
         const requestDurationS =
           (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
+
+        // See if invalid results
+        if (!results.totalVisits) {
+          throw new Error(NO_VISITS_ERROR_STRING);
+        }
 
         // Process results
         results._reqMeta = {
@@ -224,6 +327,7 @@ const main = async () => {
         // Reset variables
         countTries = 0;
         countSuccessiveErrors = 0;
+        countCaptchaTries = 0;
 
         countSuccessfulScrapes += 1;
         await timeoutPromise(RUN_DELAY);
@@ -231,6 +335,12 @@ const main = async () => {
         // Handle forced stop
         if (forcedStop) {
           throw new Error(FORCED_STOP_ERROR_STRING);
+        }
+
+        // Refresh if needed
+        const requestsNum = runIndex - startIndex;
+        if (requestsNum && requestsNum % REQUEST_PER_REFRESH == 0) {
+          await refreshBrowser();
         }
       } catch (error) {
         // Handle forced stop in case of target closed
@@ -253,7 +363,10 @@ const main = async () => {
         const isSuccessiveErrorMaxReached = errString.includes(
           SUCCESSIVE_ERROR_STRING
         );
-        if (isForcedStop || isSuccessiveErrorMaxReached) {
+        const isCaptchaBlocked = errString.includes(
+          CAPTCHA_BLOCKED_ERROR_STRING
+        );
+        if (isForcedStop || isSuccessiveErrorMaxReached || isCaptchaBlocked) {
           throw error;
         }
 
