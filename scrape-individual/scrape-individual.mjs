@@ -14,6 +14,7 @@ import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
+import UserAgent from "user-agents";
 
 const main = async () => {
   // Create runLogger
@@ -33,11 +34,12 @@ const main = async () => {
 
   // Run constants
   const NAV_TIMEOUT = 1 * 60 * 1000;
-  const WAIT_TIMEOUT = 20 * 1000;
   const RUN_DELAY = 100;
   const RETRY_DELAY = 1 * 1000;
+  const REFRESH_DELAY = 1 * 1000;
   const MAX_TRIES = 2;
   const MAX_SUCCESSIVE_ERRORS = 10;
+  const REQUESTS_PER_REFRESH = 10;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
@@ -47,9 +49,17 @@ const main = async () => {
   // CLI constants
   const CLI_ARG_KEY_SOURCE = "source";
 
+  // Variables
   let urlsFilepath = CLI_ARG_KEY_SOURCE;
   let startIndex = 0;
   let endIndex = 0;
+  let urlToScrape = "";
+  let runIndex = 0;
+
+  let countSuccessfulScrapes = 0;
+  let countFailedScrapes = 0;
+  let countTries = 0; // How many tries for one specific url
+  let countSuccessiveErrors = 0; // How many errors in a row
 
   // Handle CLI
   const cliArgs = getArgs();
@@ -105,6 +115,8 @@ const main = async () => {
 
   const initializePage = async (browser) => {
     const page = await browser.newPage();
+    const userAgent = new UserAgent().toString();
+    await page.setUserAgent(userAgent);
     await page.setViewport({
       width: 1920,
       height: 1080,
@@ -114,10 +126,8 @@ const main = async () => {
     await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
     page.on("request", (request) => {
       if (request.resourceType() === "image") {
-        // If the request is for an image, block it
         request.abort();
       } else {
-        // If it's not an image request, allow it to continue
         request.continue();
       }
     });
@@ -126,16 +136,21 @@ const main = async () => {
 
   // Initialize browser and page
   puppeteer.use(StealthPlugin());
-  const browser = await initializeBrowser();
+  let browser = await initializeBrowser();
   let page = await initializePage(browser);
 
-  // Variables that are logged at the end
-  let urlToScrape = "";
-  let runIndex = 0;
-  let countSuccessfulScrapes = 0;
-  let countFailedScrapes = 0;
-  let countTries = 0;
-  let countSuccessiveErrors = 0;
+  // Puppeteer functions
+  const refreshBrowser = async () => {
+    await browser.close();
+    browser = await initializeBrowser();
+    page = await initializePage(browser);
+
+    // Write to log
+    await runLogger.addToLog({
+      message: "refreshing browser",
+    });
+    await timeoutPromise(REFRESH_DELAY);
+  };
 
   // CSV writers related
   let mainCsvWriter = null;
@@ -158,29 +173,38 @@ const main = async () => {
   try {
     for (runIndex = startIndex; runIndex < lastIndex; runIndex++) {
       try {
+        // Refresh if needed
+        const requestsNum = runIndex - startIndex;
+        if (requestsNum > 0 && requestsNum % REQUESTS_PER_REFRESH == 0) {
+          await refreshBrowser();
+        }
+
         // Handle max successive errors
         if (countSuccessiveErrors >= MAX_SUCCESSIVE_ERRORS) {
           throw new Error(SUCCESSIVE_ERROR_STRING);
         }
 
         urlToScrape = urls[runIndex];
-        await runLogger.addToLog({
-          runIndex,
-          urlToScrape,
-          status: "start",
-        });
 
         // Make request
         const requestStartedDate = new Date();
         const requestStartedStr = requestStartedDate.toISOString();
 
+        await runLogger.addToLog({
+          runIndex,
+          urlToScrape,
+          message: "start",
+          requestStartedStr,
+        });
+
         await page.goto("https://" + urlToScrape);
-        const headSelector = "head";
-        await page.waitForSelector(headSelector, {
-          timeout: WAIT_TIMEOUT,
+
+        await runLogger.addToLog({
+          message: "navigated to " + urlToScrape,
         });
 
         const results = await page.evaluate(evaluateGenericPage);
+
         const requestEndedDate = new Date();
         const requestEndedStr = requestEndedDate.toISOString();
         const requestDurationS =
@@ -212,7 +236,7 @@ const main = async () => {
         await runLogger.addToLog({
           runIndex,
           urlToScrape,
-          status: "success",
+          message: "success",
           percent: donePercentageString,
           reqStartedAt: requestStartedStr,
           reqEndedAt: requestEndedStr,
@@ -223,13 +247,15 @@ const main = async () => {
         countTries = 0;
         countSuccessiveErrors = 0;
 
+        // Add to counts
         countSuccessfulScrapes += 1;
-        await timeoutPromise(RUN_DELAY);
 
         // Handle forced stop
         if (forcedStop) {
           throw new Error(FORCED_STOP_ERROR_STRING);
         }
+
+        await timeoutPromise(RUN_DELAY);
       } catch (error) {
         // Handle forced stop in case of target closed
         if (forcedStop) {
@@ -242,7 +268,7 @@ const main = async () => {
         await runLogger.addToLog({
           runIndex,
           urlToScrape,
-          status: "error",
+          message: "error",
           error: errString,
         });
 
@@ -260,16 +286,15 @@ const main = async () => {
 
         countTries++;
 
+        // If too many tries, skip to next url, might be something wrong
         if (isNavTimeout && countTries < MAX_TRIES) {
-          // Reinitialize page
-          await page.close();
-          page = await initializePage(browser);
+          await refreshBrowser();
 
           // Write to log
           await runLogger.addToLog({
             runIndex,
             urlToScrape,
-            status: "retrying",
+            message: "retrying",
             countTries,
           });
 
@@ -283,7 +308,7 @@ const main = async () => {
           await runLogger.addToLog({
             runIndex,
             urlToScrape,
-            status: "FAILED!",
+            message: "FAILED! Skipping",
             error: errString,
           });
 
