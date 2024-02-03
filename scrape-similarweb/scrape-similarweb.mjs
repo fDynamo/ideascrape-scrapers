@@ -33,8 +33,8 @@ const main = async () => {
   );
 
   // Run constants
-  const NAV_TIMEOUT = 40 * 1000;
-  const WAIT_TIMEOUT = 30 * 60 * 1000;
+  const NAV_TIMEOUT = 30 * 1000;
+  const WAIT_TIMEOUT = 30 * 1000;
   const RUN_DELAY = 1 * 1000;
   const RETRY_DELAY = 1 * 1000;
   const REFRESH_DELAY = 1 * 1000;
@@ -51,9 +51,7 @@ const main = async () => {
   const SUCCESSIVE_ERROR_STRING = "Max successive errors reached!";
   const NAV_ERROR_SUBSTRING = " Navigation timeout of";
   const NO_DATA_ERROR_STRING = "Page acccessed but no data in page."; // Similarweb page renders but nothing in it
-  const NOT_FOUND_ERROR_STRING = "Similarweb not found"; // Similarweb shows 404
   const WAIT_FOR_TIMEOUT_ERROR_STRING = "Waited for selectors timeout.";
-  const TOO_MANY_TRIES_ERROR_STRING = "Too many tries! See log for errors.";
 
   // CLI constants
   const CLI_ARG_KEY_SOURCE = "source";
@@ -263,58 +261,80 @@ const main = async () => {
           throw new Error(WAIT_FOR_TIMEOUT_ERROR_STRING);
         }
 
-        if (pageType == PAGE_TYPE.NOT_FOUND) {
-          throw new Error(NOT_FOUND_ERROR_STRING);
-        }
-
         await runLogger.addToLog({
           pageType,
         });
 
-        const results = await page.evaluate(evaluateSimilarWebPage);
+        // If not found, log skip
+        if (pageType == PAGE_TYPE.NOT_FOUND) {
+          // Get time and done percentages
+          const requestEndedDate = new Date();
+          const requestEndedStr = requestEndedDate.toISOString();
+          const requestDurationS =
+            (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
-        const requestEndedDate = new Date();
-        const requestEndedStr = requestEndedDate.toISOString();
-        const requestDurationS =
-          (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
+          const donePercentageString = getPercentageString(
+            runIndex + 1,
+            startIndex,
+            lastIndex
+          );
 
-        // See if invalid results
-        if (!results.totalVisits && !results.rankGlobal) {
-          throw new Error(NO_DATA_ERROR_STRING);
-        }
+          // Write to log
+          await runLogger.addToLog({
+            runIndex,
+            urlToScrape,
+            message: "not found, skipping",
+            percent: donePercentageString,
+            reqStartedAt: requestStartedStr,
+            reqEndedAt: requestEndedStr,
+            reqDurationS: requestDurationS,
+          });
+        } else {
+          const results = await page.evaluate(evaluateSimilarWebPage);
 
-        // Process results
-        results._reqMeta = {
-          urlToScrape,
-        };
-        const recordToWrite = arraySafeFlatten(results);
+          const requestEndedDate = new Date();
+          const requestEndedStr = requestEndedDate.toISOString();
+          const requestDurationS =
+            (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
-        // Write results
-        if (!mainCsvWriter) {
-          mainCsvWriter = createObjectCsvWriter({
-            path: OUT_FILE_PATH,
-            header: convertObjKeysToHeader(recordToWrite),
+          // See if invalid results
+          if (!results.totalVisits && !results.rankGlobal) {
+            throw new Error(NO_DATA_ERROR_STRING);
+          }
+
+          // Process results
+          results._reqMeta = {
+            urlToScrape,
+          };
+          const recordToWrite = arraySafeFlatten(results);
+
+          // Write results
+          if (!mainCsvWriter) {
+            mainCsvWriter = createObjectCsvWriter({
+              path: OUT_FILE_PATH,
+              header: convertObjKeysToHeader(recordToWrite),
+            });
+          }
+          await mainCsvWriter.writeRecords([recordToWrite]);
+
+          // Print progress
+          const donePercentageString = getPercentageString(
+            runIndex + 1,
+            startIndex,
+            lastIndex
+          );
+
+          // Write to log
+          await runLogger.addToLog({
+            runIndex,
+            urlToScrape,
+            message: "success",
+            percent: donePercentageString,
+            reqStartedAt: requestStartedStr,
+            reqEndedAt: requestEndedStr,
+            reqDurationS: requestDurationS,
           });
         }
-        await mainCsvWriter.writeRecords([recordToWrite]);
-
-        // Print progress
-        const donePercentageString = getPercentageString(
-          runIndex + 1,
-          startIndex,
-          lastIndex
-        );
-
-        // Write to log
-        await runLogger.addToLog({
-          runIndex,
-          urlToScrape,
-          message: "success",
-          percent: donePercentageString,
-          reqStartedAt: requestStartedStr,
-          reqEndedAt: requestEndedStr,
-          reqDurationS: requestDurationS,
-        });
 
         // Reset variables
         countTries = 0;
@@ -361,11 +381,7 @@ const main = async () => {
 
         countTries++;
 
-        if (isNavTimeout || isWaitForTimeout) {
-          // If we're supposed to retry but can't, something must be so wrong we should exit
-          if (countTries >= MAX_TRIES)
-            throw new Error(TOO_MANY_TRIES_ERROR_STRING);
-
+        if ((isNavTimeout || isWaitForTimeout) && countTries < MAX_TRIES) {
           // Reinitialize browser
           await refreshBrowser();
 
