@@ -64,8 +64,11 @@ export async function createRunLogger(scriptName, outFolder) {
     stopRunLogger: async function () {
       const endDate = new Date();
       const endStr = endDate.toISOString();
-      console.log(scriptName, "[FINISH]", endStr);
-      await this.addToEndLog({ endedAt: endStr });
+      const durationM =
+        (endDate.getTime() - this.startDate.getTime()) / (1000 * 60);
+      const durationStr = durationM.toFixed(2) + " minutes";
+      console.log(scriptName, "[FINISH]", endStr, durationStr);
+      await this.addToEndLog({ endedAt: endStr, duration: durationStr });
     },
     logCsvWriter,
     addToLog: async function (toAdd) {
