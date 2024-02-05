@@ -15,6 +15,7 @@ import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import UserAgent from "user-agents";
+import fs from "fs";
 
 const main = async () => {
   // Create runLogger
@@ -31,6 +32,7 @@ const main = async () => {
     OUT_FOLDER,
     runLogger.baseFileName + "-failed.csv"
   );
+  const FAVICON_FOLDER = getOutFolder("favicon");
 
   // Run constants
   const NAV_TIMEOUT = 1 * 60 * 1000;
@@ -40,6 +42,7 @@ const main = async () => {
   const MAX_TRIES = 2;
   const MAX_SUCCESSIVE_ERRORS = 10;
   const REQUESTS_PER_REFRESH = 10;
+  const JUST_A_MOMENT_DELAY = 5 * 1000;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
@@ -203,7 +206,13 @@ const main = async () => {
           message: "navigated to " + urlToScrape,
         });
 
-        const results = await page.evaluate(evaluateGenericPage);
+        let results = await page.evaluate(evaluateGenericPage);
+
+        // Check if we are told to wait
+        if (results.pageTitle && results.pageTitle.includes("Just a moment")) {
+          await timeoutPromise(JUST_A_MOMENT_DELAY);
+          results = await page.evaluate(evaluateGenericPage);
+        }
 
         const requestEndedDate = new Date();
         const requestEndedStr = requestEndedDate.toISOString();
@@ -224,6 +233,55 @@ const main = async () => {
           });
         }
         await mainCsvWriter.writeRecords([recordToWrite]);
+
+        // Download favicon
+        if (recordToWrite.faviconUrl) {
+          let imageUrl = recordToWrite.faviconUrl;
+          if (!imageUrl.startsWith("https")) {
+            const urlObj = new URL(imageUrl, "https://" + urlToScrape);
+            imageUrl = urlObj.toString();
+          }
+          await runLogger.addToLog({
+            message: "downloading favicon",
+            imageUrl,
+          });
+
+          const formattedUrlToScrape = urlToScrape
+            .replaceAll(".", "_")
+            .replaceAll("/", "_");
+          const filenameBase = "favicon-" + formattedUrlToScrape;
+          const faviconFilename = filenameBase + ".png";
+          const faviconFilepath = join(FAVICON_FOLDER, faviconFilename);
+          const faviconLogFilename = faviconFilename + "-log.json";
+          const faviconLogFilepath = join(FAVICON_FOLDER, faviconLogFilename);
+
+          try {
+            const imgPage = await page.goto(imageUrl);
+            fs.writeFileSync(faviconFilepath, await imgPage.buffer());
+            fs.writeFileSync(
+              faviconLogFilepath,
+              JSON.stringify({ urlToScrape, faviconFilepath }),
+              { encoding: "utf-8" }
+            );
+            await runLogger.addToLog({
+              message: "success downloading favicon",
+            });
+          } catch (error) {
+            fs.writeFileSync(
+              faviconLogFilepath,
+              JSON.stringify({
+                urlToScrape,
+                message: "failed",
+                error: error + "",
+              }),
+              { encoding: "utf-8" }
+            );
+            await runLogger.addToLog({
+              message: "failed downloading favicon",
+              error: error + "",
+            });
+          }
+        }
 
         // Print progress
         const donePercentageString = getPercentageString(

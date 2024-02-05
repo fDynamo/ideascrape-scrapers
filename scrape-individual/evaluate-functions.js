@@ -7,10 +7,15 @@ const evaluateGenericPage = async () => {
 
   const linkElList = document.querySelectorAll("head link");
   let canonicalUrl = "";
+  let faviconUrl = "";
   linkElList.forEach((linkEl) => {
     const rel = linkEl.getAttribute("rel");
     if (rel == "canonical") {
       canonicalUrl = linkEl.getAttribute("href");
+    }
+
+    if (rel == "shortcut icon" || rel == "icon" || rel == "icon shortcut") {
+      faviconUrl = linkEl.getAttribute("href");
     }
   });
 
@@ -83,6 +88,7 @@ const evaluateGenericPage = async () => {
     twitterMetaTags,
     ogMetaTags,
     otherMetaTags,
+    faviconUrl,
   };
 };
 
