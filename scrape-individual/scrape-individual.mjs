@@ -32,7 +32,7 @@ const main = async () => {
     OUT_FOLDER,
     runLogger.baseFileName + "-failed.csv"
   );
-  const FAVICON_FOLDER = getOutFolder("favicon");
+  const FAVICON_FOLDER = getOutFolder("favicons");
 
   // Run constants
   const NAV_TIMEOUT = 1 * 60 * 1000;
@@ -250,32 +250,17 @@ const main = async () => {
             .replaceAll(".", "_")
             .replaceAll("/", "_");
           const filenameBase = "favicon-" + formattedUrlToScrape;
+          // TODO: Recognize svgs and other file formats
           const faviconFilename = filenameBase + ".png";
           const faviconFilepath = join(FAVICON_FOLDER, faviconFilename);
-          const faviconLogFilename = faviconFilename + "-log.json";
-          const faviconLogFilepath = join(FAVICON_FOLDER, faviconLogFilename);
 
           try {
             const imgPage = await page.goto(imageUrl);
             fs.writeFileSync(faviconFilepath, await imgPage.buffer());
-            fs.writeFileSync(
-              faviconLogFilepath,
-              JSON.stringify({ urlToScrape, faviconFilepath }),
-              { encoding: "utf-8" }
-            );
             await runLogger.addToLog({
               message: "success downloading favicon",
             });
           } catch (error) {
-            fs.writeFileSync(
-              faviconLogFilepath,
-              JSON.stringify({
-                urlToScrape,
-                message: "failed",
-                error: error + "",
-              }),
-              { encoding: "utf-8" }
-            );
             await runLogger.addToLog({
               message: "failed downloading favicon",
               error: error + "",
