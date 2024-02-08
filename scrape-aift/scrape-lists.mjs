@@ -14,9 +14,6 @@ import {
   timeoutPromise,
 } from "../helpers/index.js";
 import UserAgent from "user-agents";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
-
-puppeteer.use(StealthPlugin());
 
 const main = async () => {
   const OUT_FOLDER = getOutFolder("scrape_aift_lists");

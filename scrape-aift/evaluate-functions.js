@@ -78,19 +78,18 @@ const evaluateTasks = async (tasksSelector) => {
 
       const savesEl = statsRightDiv.querySelector(savesSelector);
       if (savesEl) {
-        countSaves = parseInt(savesEl.innerText);
+        countSaves = savesEl.innerText;
       }
       const commentsEl = statsRightDiv.querySelector(commentsSelector);
       if (commentsEl) {
-        countComments = parseInt(commentsEl.innerText);
+        countComments = commentsEl.innerText;
       }
 
       const starsEl = statsRightDiv.querySelector(starsSelector);
       if (starsEl) {
         const statsText = statsRightDiv.innerText;
         const statsComponents = statsText.split("\n");
-        if (statsComponents.length)
-          starRatings = parseFloat(statsComponents[0]);
+        if (statsComponents.length) starRatings = statsComponents[0];
       }
     }
 
