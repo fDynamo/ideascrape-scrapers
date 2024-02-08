@@ -1,0 +1,44 @@
+{
+  "list": [
+    {
+      "url": "https://theresanaiforthat.com/period/2015",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2016",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2017",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2018",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2019",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2020",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2021",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2022",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2023",
+      "taskSelectors": ["#data_hist"]
+    },
+    {
+      "url": "https://theresanaiforthat.com/period/2024",
+      "taskSelectors": ["#data_hist"]
+    }
+  ]
+}

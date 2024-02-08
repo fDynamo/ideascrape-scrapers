@@ -1,0 +1,8 @@
+{
+  "list": [
+    {
+      "url": "https://theresanaiforthat.com",
+      "taskSelectors": ["#data_hist", "#sidebar_right .tasks"]
+    }
+  ]
+}

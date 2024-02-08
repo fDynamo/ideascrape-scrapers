@@ -1,208 +1,269 @@
 import puppeteer from "puppeteer-extra";
-import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { evaluatePostPage } from "./evaluate-functions.js";
-import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { createObjectCsvWriter } from "csv-writer";
 import {
-  convertObjKeysToHeader,
   getArgs,
+  getPercentageString,
   timeoutPromise,
 } from "../helpers/index.js";
-import { extname, join } from "path";
-import { readFileSync, readdirSync } from "fs";
-import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
+import { join } from "path";
+import { existsSync, readFileSync } from "fs";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { getOutFolder } from "../helpers/get-paths.js";
-
-const OUT_POSTS_FOLDER = getOutFolder("scrape_aift_posts");
-
-const NAV_TIMEOUT = 10 * 1000;
-const WAIT_TIMEOUT = 10 * 1000;
-const RUN_DELAY = 1000;
-const RETRY_DELAY = 5 * 1000;
-const MAX_TRIES = 3;
-
-const LATEST_FILEPATH_KEY = "latest";
-let urlsFilepath = LATEST_FILEPATH_KEY;
-
-let START_INDEX = 0;
-let END_INDEX = 0;
-
-// Handle CLI arguments
-/**
- * First argument: filepath
- * Second argument: Start index
- * Third argument: End index, leave at 0 to go to the end. This is exclusive!
- */
-const cliArgs = getArgs();
-const arg1 = cliArgs[0];
-
-if (arg1) {
-  urlsFilepath = arg1;
-
-  // Parse second and third args for start and stop
-  const arg2 = cliArgs[1];
-  const arg3 = cliArgs[2];
-
-  if (arg2) {
-    if (arg3) {
-      START_INDEX = parseInt(arg2);
-      END_INDEX = parseInt(arg3);
-    } else {
-      END_INDEX = parseInt(arg2);
-    }
-  }
-}
-
-// Get urls file path if latest
-if (urlsFilepath == LATEST_FILEPATH_KEY) {
-  const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
-  const files = readdirSync(POST_URLS_FOLDER);
-
-  let oldestFilename = "";
-  for (let i = 0; i < files.length; i++) {
-    const file = files[i];
-    if (extname(file) != ".json") continue;
-
-    if (!oldestFilename) oldestFilename = file;
-    else {
-      if (file > oldestFilename) oldestFilename = file;
-    }
-  }
-
-  const oldestFilepath = join(POST_URLS_FOLDER, oldestFilename);
-  urlsFilepath = oldestFilepath;
-}
-
-// Read urls file
-const urlsFileContents = readFileSync(urlsFilepath, "utf-8");
-const urlsFileObj = JSON.parse(urlsFileContents);
-const postUrlsToScrape = urlsFileObj.urls;
-const lastIndex = END_INDEX ? END_INDEX : postUrlsToScrape.length;
+import { createRunLogger } from "../helpers/run-logger.mjs";
+import UserAgent from "user-agents";
 
 const main = async () => {
-  console.log("aift scrape-posts started");
-  const startDate = new Date();
-  const { scriptStartedFilename, scriptStartedStr } = logStartScrape(
-    OUT_POSTS_FOLDER,
-    startDate,
-    { cliArgs, urlsFilepath, countUrlsToScrape: lastIndex - START_INDEX }
+  const OUT_FOLDER = getOutFolder("scrape_aift_posts");
+  const dataHeaders = [
+    "product_url",
+    "count_save",
+    "image_url",
+    "aift_url",
+    "listed_at",
+    "updated_at",
+  ];
+  const runLogger = await createRunLogger(
+    "aift-scrape-posts",
+    dataHeaders,
+    OUT_FOLDER
   );
+
+  // Run constants
+  const NAV_TIMEOUT = 10 * 1000;
+  const WAIT_TIMEOUT = 10 * 1000;
+  const RUN_DELAY = 1 * 1000;
+  const RETRY_DELAY = 5 * 1000;
+  const MAX_RETRIES = 3;
+
+  // Error strings
+  const ERROR_STRING_NAVIGATION = "Navigation timeout of";
+  const ERROR_STRING_SELECTOR = "Waiting for selector";
+  const ERROR_STRING_FORCED_STOP = "Forced stop";
+  const ERROR_STRING_CANT_RETRY = "Error but can't retry!";
+
+  // Initializer variables
+  const FILEPATH_KEYS = ["all", "latest"];
+  let urlsFilepath = FILEPATH_KEYS[1];
+  let START_INDEX = 0;
+  let END_INDEX = 0;
+
+  // Handle CLI arguments
+  const cliArgs = getArgs();
+  const arg1 = cliArgs[0];
+
+  if (arg1) {
+    urlsFilepath = arg1;
+
+    // Parse second and third args for start and stop
+    const arg2 = cliArgs[1];
+    const arg3 = cliArgs[2];
+
+    if (arg2) {
+      if (arg3) {
+        START_INDEX = parseInt(arg2);
+        END_INDEX = parseInt(arg3);
+      } else {
+        START_INDEX = parseInt(arg2);
+      }
+    }
+  }
+
+  // Get urls file path if using a key
+  if (FILEPATH_KEYS.includes(urlsFilepath)) {
+    const POST_URLS_FOLDER = getOutFolder("scrape_aift_post_urls");
+    const filename = urlsFilepath + ".json";
+    urlsFilepath = join(POST_URLS_FOLDER, filename);
+  }
+
+  // Read urls file
+  if (!urlsFilepath || !existsSync(urlsFilepath)) {
+    console.log("URLs file not found!", urlsFilepath);
+    process.exit();
+  }
+
+  let postUrlsToScrape = [];
+
+  try {
+    const urlsFileContents = readFileSync(urlsFilepath, "utf-8");
+    const urlsFileObj = JSON.parse(urlsFileContents);
+    postUrlsToScrape = urlsFileObj.urls;
+  } catch {
+    console.log("Cant read URLs file!", urlsFilepath);
+    process.exit();
+  }
+
+  const lastIndex = END_INDEX ? END_INDEX : postUrlsToScrape.length;
+
+  await runLogger.addToStartLog({
+    cliArgs,
+    startIndex: START_INDEX,
+    endIndex: END_INDEX,
+    lastIndex,
+    urlsFilepath,
+  });
+
+  // Puppeteer initializers
+  const initializeBrowser = async () => {
+    return await puppeteer.launch({ headless: "new" });
+  };
+
+  const initializePage = async (browser) => {
+    const page = await browser.newPage();
+
+    const userAgent = new UserAgent().toString();
+    await page.setUserAgent(userAgent);
+
+    await page.setViewport({
+      width: 1920,
+      height: 1080,
+      deviceScaleFactor: 1,
+    });
+    await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
+    return page;
+  };
+
+  // Variables
+  let urlToScrape = "";
+  let runIndex = 0;
+  let countSuccessfulScrapes = 0;
+  let countFailedScrapes = 0;
+  let countRetries = 0;
+
+  let browser = await initializeBrowser();
+  let page = await initializePage(browser);
+
+  const resetBrowser = async () => {
+    await browser.close();
+    browser = await initializeBrowser();
+    page = await initializePage(browser);
+  };
 
   const endLogContents = {};
 
-  // Variables to interact with at the end
-  let urlToScrape = "";
-  let urlToScrapeIndex = START_INDEX;
-  const failedToScrapeUrls = [];
-  let countSuccessfulScrapes = 0;
-  let browser = null;
-  let postPage = null;
+  // Some scraping constants
+  const mainLinkSelector = "a#main_ai_link";
+
+  // Forced stop
+  let forcedStop = false;
+  registerGracefulExit(() => {
+    forcedStop = true;
+  });
 
   try {
-    puppeteer.use(StealthPlugin());
-    browser = await puppeteer.launch({ headless: "new" });
+    for (runIndex = START_INDEX; runIndex < lastIndex; runIndex++) {
+      if (forcedStop) {
+        throw new Error(ERROR_STRING_FORCED_STOP);
+      }
 
-    postPage = await browser.newPage();
-    postPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
-
-    const mainLinkSelector = "a#main_ai_link";
-    let triesCounter = 0;
-
-    let csvWriter = null;
-    let forcedStop = false;
-    const FORCED_STOP_ERROR_STRING = "Forced stop";
-    registerGracefulExit(() => {
-      forcedStop = true;
-    });
-
-    for (let i = START_INDEX; i < lastIndex; i++) {
-      urlToScrape = postUrlsToScrape[i];
-      urlToScrapeIndex = i;
+      urlToScrape = postUrlsToScrape[runIndex];
       if (!urlToScrape) continue;
 
       try {
-        console.log("start scrape", i, urlToScrape);
-
+        await runLogger.addToActionLog({ startedUrl: urlToScrape });
         const requestStartedDate = new Date();
         const requestStartedStr = requestStartedDate.toISOString();
 
-        await postPage.goto(urlToScrape);
-        await postPage.waitForSelector(mainLinkSelector, {
+        await page.goto(urlToScrape);
+        await page.waitForSelector(mainLinkSelector, {
           timeout: WAIT_TIMEOUT,
         });
-        const result = await postPage.evaluate(evaluatePostPage);
+        const result = await page.evaluate(evaluatePostPage);
 
         const requestEndedDate = new Date();
         const requestEndedStr = requestEndedDate.toISOString();
-
-        console.log("end scrape");
+        const requestDurationS =
+          (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
         // Process results
-        result._reqMeta = {
-          scriptStartedAt: scriptStartedStr,
-          startedAt: requestStartedStr,
-          endedAt: requestEndedStr,
-          postIndex: i,
-          postUrl: urlToScrape,
+        let { firstFeaturedText } = result.productInfo;
+        if (firstFeaturedText) {
+          const firstFeaturedSeparator = "was first featured on";
+          const tmpId = firstFeaturedText.indexOf(firstFeaturedSeparator);
+          firstFeaturedText = firstFeaturedText
+            .substring(tmpId + firstFeaturedSeparator.length)
+            .trim();
+          if (firstFeaturedText.includes(".")) {
+            firstFeaturedText = firstFeaturedText.substring(
+              0,
+              firstFeaturedText.length - 1
+            );
+          }
+        }
+
+        const recordToWrite = {
+          product_url: result.productInfo.productLink,
+          count_save: result.ratings.countSaves,
+          image_url: result.productInfo.imageUrl,
+          aift_url: urlToScrape,
+          listed_at: result.productInfo.launchDateText,
+          updated_at: firstFeaturedText,
         };
-        const recordToWrite = arraySafeFlatten(result);
 
         // Write to csv file
-        if (!csvWriter) {
-          const header = convertObjKeysToHeader(recordToWrite);
-          const outFileName = scriptStartedFilename + ".csv";
-          const outFilePath = join(OUT_POSTS_FOLDER, outFileName);
-          csvWriter = createObjectCsvWriter({
-            path: outFilePath,
-            header,
-          });
-        }
-        csvWriter.writeRecords([recordToWrite]);
+        await runLogger.addToData([recordToWrite]);
 
-        // Update counters
-        triesCounter = 0;
+        // Reset counters
+        countRetries = 0;
+
+        // Print progress
+        const donePercentageString = getPercentageString(
+          runIndex + 1,
+          START_INDEX,
+          lastIndex
+        );
+        await runLogger.addToActionLog({
+          finishedUrl: urlToScrape,
+          runIndex,
+          percent: donePercentageString,
+          reqStartedAt: requestStartedStr,
+          reqEndedAt: requestEndedStr,
+          reqDurationS: requestDurationS,
+        });
         countSuccessfulScrapes += 1;
 
-        // Print percentage
-        const normalizedIndex = i + 1 - START_INDEX;
-        const normalizedLastIndex = lastIndex - START_INDEX;
-        const doneFraction = normalizedIndex / normalizedLastIndex;
-        const donePercentage = doneFraction * 100;
-        const donePercentageString = donePercentage.toFixed(2) + "%";
-        console.log("done", donePercentageString);
-
-        if (forcedStop) {
-          throw new Error(FORCED_STOP_ERROR_STRING);
-        }
-
+        await resetBrowser();
         await timeoutPromise(RUN_DELAY);
       } catch (error) {
         const errString = error + "";
-        const NAV_ERROR_STRING = " Navigation timeout of";
-        const SELECTOR_ERROR_STRING = " Waiting for selector";
-        const isNavTimeout = errString.includes(NAV_ERROR_STRING);
-        const isSelectorTimeout = errString.includes(SELECTOR_ERROR_STRING);
-        const isForcedStop = errString.includes(FORCED_STOP_ERROR_STRING);
+        await runLogger.addToErrorLog({
+          urlToScrape,
+          error: errString,
+        });
 
-        console.log("ERROR", error);
-        triesCounter++;
+        const isNavTimeout = errString.includes(ERROR_STRING_NAVIGATION);
+        const isSelectorTimeout = errString.includes(ERROR_STRING_SELECTOR);
+        const isForcedStop = errString.includes(ERROR_STRING_FORCED_STOP);
 
         if (isForcedStop) {
           throw error;
         }
 
-        if ((isNavTimeout || isSelectorTimeout) && triesCounter < MAX_TRIES) {
-          await postPage.close();
-          postPage = await browser.newPage();
-          postPage.setDefaultNavigationTimeout(NAV_TIMEOUT);
+        if ((isNavTimeout || isSelectorTimeout) && countRetries < MAX_RETRIES) {
+          countRetries++;
+          await runLogger.addToActionLog({
+            retryingUrl: urlToScrape,
+            countRetries,
+          });
+
+          await resetBrowser();
           await timeoutPromise(RETRY_DELAY);
-          i--;
+          runIndex--;
         } else {
-          console.log("URL SCRAPE FAILED!", urlToScrape);
-          triesCounter = 0;
-          failedToScrapeUrls.push({ url: urlToScrape, error: errString });
+          await runLogger.addToErrorLog({
+            urlToScrape,
+            error: ERROR_STRING_CANT_RETRY,
+          });
+
+          await runLogger.addToFailedLog({
+            url: urlToScrape,
+            countRetries,
+            errString,
+          });
+          countRetries = 0;
+          countFailedScrapes++;
         }
+
+        await timeoutPromise(RUN_DELAY);
         continue;
       }
     }
@@ -210,17 +271,16 @@ const main = async () => {
     endLogContents.error = "" + error;
   }
 
-  if (postPage) await postPage.close();
+  if (page) await page.close();
   if (browser) await browser.close();
 
   endLogContents.lastUrlToScrape = urlToScrape;
-  endLogContents.lastUrlToScrapeIndex = urlToScrapeIndex;
-  endLogContents.failedToScrapeUrls = failedToScrapeUrls;
+  endLogContents.lastRunIndex = runIndex;
   endLogContents.countSuccessfulScrapes = countSuccessfulScrapes;
+  endLogContents.countFailedScrapes = countFailedScrapes;
 
-  logEndScrape(OUT_POSTS_FOLDER, startDate, endLogContents);
-
-  console.log("aift scrape-posts ended");
+  await runLogger.addToEndLog(endLogContents);
+  await runLogger.stopRunLogger();
   process.exit();
 };
 
