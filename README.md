@@ -7,6 +7,16 @@ This repo contains scraping scripts for ideascrape
 - Create a .env file with an env variable for master out folder `MASTER_OUT_FOLDER=<INSERT PATH HERE>`
 - Do the same in `/python_scripts` but also with `OPENAI_API_KEY`
 
+## How to scrape PH
+
+- Run scrape-homefeed, will scrape ph homefeeds from yesterday until a certain day as controlled by inputs
+
+## How to scrape AIFT
+
+- Run scrape-lists with appropriate list
+- Run extract-post-urls latest or all
+- Run scrape-posts with latest or all
+
 ## TO IMPROVE
 
 - Better logging
