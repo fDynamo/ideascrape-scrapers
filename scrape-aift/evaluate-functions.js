@@ -14,13 +14,20 @@ const evaluateTasks = async (tasksSelector) => {
     const sourceUrl = dataUrl;
     const aiftSlug = dataSlug;
 
+    // Get image
+    let imageUrl = "";
+    const imageEl = listItem.querySelector("img");
+    if (imageEl) {
+      imageUrl = imageEl.getAttribute("src");
+    }
+
     // Title anchor tag
     const titleAnchor = listItem.querySelector("a.ai_link");
     const titleAnchorText = titleAnchor.innerText;
     const titleAnchorUrl = titleAnchor.href;
 
     const projectName2 = titleAnchorText;
-    const titleLinkUrl = titleAnchorUrl;
+    const aiftUrl = titleAnchorUrl;
 
     // Check if verified
     const listItemClass = listItem.getAttribute("class");
@@ -92,7 +99,8 @@ const evaluateTasks = async (tasksSelector) => {
       projectName2,
       aiftSlug,
       sourceUrl,
-      titleLinkUrl,
+      imageUrl,
+      aiftUrl,
       postUrl,
       isVerified,
       cornerIconUrl,
@@ -340,14 +348,21 @@ const evaluatePostPage = async () => {
     productLinkDataType = productLinkAnchor.getAttribute("data-type");
   }
 
+  // Get image url
+  let imageUrl = "";
+  const imageEl = document.querySelector("img.taaft_icon");
+  if (imageEl) {
+    imageUrl = imageEl.getAttribute("src");
+  }
+
   return {
     productInfo: {
       postTitle,
       useCase,
       chatGptDescription,
       faqList,
-      firstFeaturedText,
-      launchDateText,
+      firstFeaturedText, // updated at
+      launchDateText, // listed at
       breadcrumbsText,
       prosList,
       consList,
@@ -356,6 +371,7 @@ const evaluatePostPage = async () => {
       rankingText,
       productLink,
       productLinkDataType,
+      imageUrl,
     },
     tags: {
       taskLabel,
