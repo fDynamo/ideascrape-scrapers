@@ -11,6 +11,7 @@ import registerGracefulExit from "../helpers/graceful-exit.js";
 import { getOutFolder } from "../helpers/get-paths.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import UserAgent from "user-agents";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 
 const main = async () => {
   const OUT_FOLDER = getOutFolder("scrape_aift_posts");
@@ -103,6 +104,7 @@ const main = async () => {
   });
 
   // Puppeteer initializers
+  puppeteer.use(StealthPlugin());
   const initializeBrowser = async () => {
     return await puppeteer.launch({ headless: "new" });
   };

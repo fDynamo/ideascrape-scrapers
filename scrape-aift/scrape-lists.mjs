@@ -14,6 +14,7 @@ import {
   timeoutPromise,
 } from "../helpers/index.js";
 import UserAgent from "user-agents";
+import StealthPlugin from "puppeteer-extra-plugin-stealth";
 
 puppeteer.use(StealthPlugin());
 
@@ -71,6 +72,7 @@ const main = async () => {
   });
 
   // Puppeteer initializers
+  puppeteer.use(StealthPlugin());
   const initializeBrowser = async () => {
     return await puppeteer.launch({ headless: "new" });
   };
