@@ -2,7 +2,7 @@ import { createObjectCsvWriter } from "csv-writer";
 import { getDateFilename } from "./index.js";
 import { join } from "path";
 
-export async function createRunLogger(scriptName, outFolder) {
+export async function createRunLogger(scriptName, dataHeaders, outFolder) {
   const startDate = new Date();
   const scriptStartedStr = startDate.toISOString();
   const scriptStartedFilename = getDateFilename(startDate);
@@ -16,8 +16,14 @@ export async function createRunLogger(scriptName, outFolder) {
   const endLogFileName = baseFileName + "-end.csv";
   const endLogFilePath = join(outFolder, endLogFileName);
 
-  const logFileName = baseFileName + "-log.csv";
-  const logFilePath = join(outFolder, logFileName);
+  const actionLogFileName = baseFileName + "-action-log.csv";
+  const actionLogFilePath = join(outFolder, actionLogFileName);
+
+  const errorLogFileName = baseFileName + "-error.csv";
+  const errorLogFilePath = join(outFolder, errorLogFileName);
+
+  const dataFileName = baseFileName + "-data.csv";
+  const dataFilePath = join(outFolder, dataFileName);
 
   // Create CSV writers
   const KEY_VAL_HEADER = [
@@ -33,9 +39,22 @@ export async function createRunLogger(scriptName, outFolder) {
     path: endLogFilePath,
     header: KEY_VAL_HEADER,
   });
-  const logCsvWriter = createObjectCsvWriter({
-    path: logFilePath,
+  const actionLogCsvWriter = createObjectCsvWriter({
+    path: actionLogFilePath,
     header: KEY_VAL_HEADER,
+  });
+  const errorLogCsvWriter = createObjectCsvWriter({
+    path: errorLogFilePath,
+    header: KEY_VAL_HEADER,
+  });
+
+  const formattedHeaders = dataHeaders.map((headerName) => ({
+    id: headerName,
+    title: headerName,
+  }));
+  const dataCsvWriter = createObjectCsvWriter({
+    path: dataFilePath,
+    header: formattedHeaders,
   });
 
   // Write start info
@@ -70,8 +89,8 @@ export async function createRunLogger(scriptName, outFolder) {
       console.log(scriptName, "[FINISH]", endStr, durationStr);
       await this.addToEndLog({ endedAt: endStr, duration: durationStr });
     },
-    logCsvWriter,
-    addToLog: async function (toAdd) {
+    actionLogCsvWriter,
+    addToActionLog: async function (toAdd) {
       console.log(scriptName, "[LOG]", toAdd);
       const nowDate = new Date();
       const nowStr = nowDate.toISOString();
@@ -80,7 +99,25 @@ export async function createRunLogger(scriptName, outFolder) {
       });
       toWrite.unshift({ key: "date", val: nowStr });
       toWrite.push({ key: "", val: "" });
-      await this.logCsvWriter.writeRecords(toWrite);
+      await this.actionLogCsvWriter.writeRecords(toWrite);
+    },
+    errorLogCsvWriter,
+    addToErrorLog: async function (toAdd) {
+      console.log(scriptName, "[ERROR]", toAdd);
+      const nowDate = new Date();
+      const nowStr = nowDate.toISOString();
+      const toWrite = objToKeyVal(toAdd).map((obj) => {
+        return { ...obj };
+      });
+      toWrite.unshift({ key: "date", val: nowStr });
+      toWrite.push({ key: "", val: "" });
+      await this.errorLogCsvWriter.writeRecords(toWrite);
+    },
+    dataCsvWriter,
+    addToData: async function (toAdd) {
+      console.log(scriptName, "[WRITING]", "size", toAdd.length);
+      console.log(scriptName, "[WRITING]", "sample", toAdd[0]);
+      await this.dataCsvWriter.writeRecords(toAdd);
     },
   };
 }

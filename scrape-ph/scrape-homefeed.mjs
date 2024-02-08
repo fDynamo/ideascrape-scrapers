@@ -1,65 +1,82 @@
-import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import { getOutFolder } from "../helpers/get-paths.js";
 import {
   getArgs,
   timeoutPromise,
-  convertObjKeysToHeader,
+  getPercentageString,
 } from "../helpers/index.js";
-import { logStartScrape, logEndScrape } from "../helpers/logger.js";
 import { queryPH } from "./graphql-query.js";
-import { createObjectCsvWriter } from "csv-writer";
-import { join } from "path";
-
-const OUT_FOLDER = getOutFolder("scrape_ph");
-const RUN_DELAY = 1500;
-
-let START_CURSOR = 0;
-let ENDING_CURSOR = 5;
-
-// Handle CLI arguments
-const cliArgs = getArgs();
-const arg1 = cliArgs[0];
-const arg2 = cliArgs[1];
-
-if (arg1) {
-  // If both arguments present, start and end
-  if (arg2) {
-    START_CURSOR = parseInt(arg1);
-    ENDING_CURSOR = parseInt(arg2);
-  }
-  // Otherwise, only end
-  else {
-    ENDING_CURSOR = parseInt(arg1);
-  }
-}
+import { createRunLogger } from "../helpers/run-logger.mjs";
+import registerGracefulExit from "../helpers/graceful-exit.js";
 
 const main = async () => {
-  console.log("ph scrape-homefeed started");
-  let cursor = START_CURSOR;
-  let continueRunning = true;
-
-  // Write log start
-  const scriptStartedDate = new Date();
-  const logFileStartContents = {
-    cliArgs,
-  };
-  const { scriptStartedStr, scriptStartedFilename } = logStartScrape(
-    OUT_FOLDER,
-    scriptStartedDate,
-    logFileStartContents
+  const OUT_FOLDER = getOutFolder("scrape_ph");
+  const dataHeaders = [
+    "product_url",
+    "count_follower",
+    "image_url",
+    "listed_at",
+    "updated_at",
+    "ph_url",
+  ];
+  const runLogger = await createRunLogger(
+    "ph-scrape-homefeed",
+    dataHeaders,
+    OUT_FOLDER
   );
 
-  const logFileEndContents = {};
+  // Run variables
+  const RUN_DELAY = 1500;
+  const RETRY_DELAY = 5000;
+  const MAX_RETRIES = 5;
 
-  // Start csv writer
-  const outFileName = scriptStartedFilename + ".csv";
-  const outFilePath = join(OUT_FOLDER, outFileName);
-  let csvWriter = null;
+  // Error strings
+  const ERR_STRING_NO_ITEMS = "No items retrieved!";
+  const ERR_STRING_NO_NEXT_PAGE = "No next page found";
+  const ERR_STRING_MAX_RETRIES_REACHED = "Max retries reached!";
 
-  while (continueRunning) {
-    console.log("Start cursor", cursor);
+  // Start and end cursor defaults
+  let START_CURSOR = 0;
+  let ENDING_CURSOR = 5;
 
+  // Register graceful exit
+  let forcedStop = false;
+  registerGracefulExit(() => {
+    forcedStop = true;
+  });
+
+  // Handle CLI arguments
+  const cliArgs = getArgs();
+  const arg1 = cliArgs[0];
+  const arg2 = cliArgs[1];
+
+  if (arg1) {
+    // If both arguments present, start and end
+    if (arg2) {
+      START_CURSOR = parseInt(arg1);
+      ENDING_CURSOR = parseInt(arg2);
+    }
+    // Otherwise, only end
+    else {
+      ENDING_CURSOR = parseInt(arg1);
+    }
+  }
+
+  // Other variables
+  let cursor = 0;
+  let entriesAdded = 0;
+  let countRetries = 0;
+
+  const endLogContents = {};
+
+  await runLogger.addToStartLog({
+    cliArgs,
+    startCursor: START_CURSOR,
+    endCursor: ENDING_CURSOR,
+  });
+
+  for (cursor = START_CURSOR; cursor < ENDING_CURSOR; cursor++) {
     try {
+      await runLogger.addToActionLog({ startedCursor: cursor });
       const requestStartedDate = new Date();
       const requestStartedStr = requestStartedDate.toISOString();
 
@@ -67,62 +84,103 @@ const main = async () => {
 
       const requestEndedDate = new Date();
       const requestEndedStr = requestEndedDate.toISOString();
+      const requestDurationS =
+        (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
       const { pageInfo, edges } = queryRes.data.homefeed;
       const { date: nodeDate, items } = edges[0].node;
 
-      console.log("Retrieved cursor", cursor);
-
       if (!items.length) {
-        throw new Error("No items retrieved!");
+        throw new Error(ERR_STRING_NO_ITEMS);
       }
 
-      const recordsToWrite = items.map((obj, objIndex) => {
-        obj._reqMeta = {
-          scriptStartedAt: scriptStartedStr,
-          startedAt: requestStartedStr,
-          endedAt: requestEndedStr,
-          nodeDate,
-          reqCursor: cursor,
-          objIndex,
-        };
-        return arraySafeFlatten(obj);
+      const recordsToWrite = [];
+
+      items.forEach((obj) => {
+        if (!obj.product) return;
+        const { product } = obj;
+
+        let image_url = "";
+        let listed_at = "";
+        let updated_at = "";
+        let count_follower = 0;
+        let ph_url = "";
+        try {
+          image_url = product.structuredData.image;
+          listed_at = product.structuredData.datePublished;
+          updated_at = product.structuredData.dateModified;
+          count_follower = product.followersCount;
+          ph_url = product.url;
+        } catch {}
+
+        recordsToWrite.push({
+          product_url: product.websiteUrl,
+          image_url,
+          listed_at,
+          updated_at,
+          count_follower,
+          ph_url,
+        });
       });
 
-      if (!csvWriter) {
-        const header = convertObjKeysToHeader(recordsToWrite[0]);
-        csvWriter = createObjectCsvWriter({
-          path: outFilePath,
-          header,
-        });
-      }
-      csvWriter.writeRecords(recordsToWrite);
+      await runLogger.addToData(recordsToWrite);
+
+      // Print progress
+      const donePercentageString = getPercentageString(
+        cursor + 1,
+        START_CURSOR,
+        ENDING_CURSOR
+      );
+      await runLogger.addToActionLog({
+        finishedCursor: cursor,
+        recordsRetrieved: recordsToWrite.length,
+        nodeDate,
+        percent: donePercentageString,
+        reqStartedAt: requestStartedStr,
+        reqEndedAt: requestEndedStr,
+        reqDurationS: requestDurationS,
+      });
+
+      entriesAdded += recordsToWrite.length;
 
       if (!pageInfo.hasNextPage) {
-        throw new Error("No next page");
+        throw new Error(ERR_STRING_NO_NEXT_PAGE);
       }
+
+      countRetries = 0;
     } catch (error) {
-      console.log("ERROR", error);
-      logFileEndContents.message = "ERROR";
-      logFileEndContents.error = "" + error;
-      continueRunning = false;
+      const errStr = error + "";
+
+      await runLogger.addToErrorLog({ error: errStr });
+
+      if (errStr == ERR_STRING_NO_ITEMS || errStr == ERR_STRING_NO_NEXT_PAGE) {
+        endLogContents.message = "Error";
+        endLogContents.error = errStr;
+        break;
+      }
+
+      // Check if we can retry
+      if (countRetries < MAX_RETRIES) {
+        countRetries += 1;
+        cursor--;
+        await timeoutPromise(RETRY_DELAY);
+      } else {
+        endLogContents.message = "Error";
+        endLogContents.error = ERR_STRING_MAX_RETRIES_REACHED;
+        break;
+      }
+    }
+
+    if (forcedStop) {
+      endLogContents.message = "Forced stop";
       break;
     }
 
     // Increment cursor
     cursor++;
 
-    // Log percentages
-    const doneFraction =
-      (cursor - START_CURSOR) / (ENDING_CURSOR - START_CURSOR);
-    const donePercentage = doneFraction * 100;
-    const donePercentageString = donePercentage.toFixed(2) + "%";
-    console.log(donePercentageString);
-
     if (cursor >= ENDING_CURSOR) {
-      console.log("Met ending cursor");
-      logFileEndContents.message = "SUCCESS";
-      continueRunning = false;
+      endLogContents.message = "Met ending cursor";
       break;
     }
 
@@ -130,10 +188,12 @@ const main = async () => {
   }
 
   // Write log end
-  logFileEndContents.endCursor = cursor;
-  logEndScrape(OUT_FOLDER, scriptStartedDate, logFileEndContents);
+  endLogContents.endCursor = cursor;
+  endLogContents.entriesAdded = entriesAdded;
 
-  console.log("ph scrape-homefeed end");
+  await runLogger.addToEndLog(endLogContents);
+  await runLogger.stopRunLogger();
+  process.exit();
 };
 
 main();
