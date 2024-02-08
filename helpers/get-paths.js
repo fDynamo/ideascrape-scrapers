@@ -6,7 +6,7 @@ dotenv.config();
 function getOutFolder(key) {
   const outRoot = process.env.MASTER_OUT_FOLDER;
   if (!existsSync(outRoot)) {
-    throw new Error("No out folder created");
+    throw new Error("No out folder created " + outRoot);
   }
   const jsonFile = join(outRoot, "directory-structure.json");
   const fileContents = readFileSync(jsonFile, "utf-8");
