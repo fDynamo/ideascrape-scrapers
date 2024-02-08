@@ -22,6 +22,9 @@ export async function createRunLogger(scriptName, dataHeaders, outFolder) {
   const errorLogFileName = baseFileName + "-error.csv";
   const errorLogFilePath = join(outFolder, errorLogFileName);
 
+  const failedLogFileName = baseFileName + "-failed.csv";
+  const failedLogFilePath = join(outFolder, failedLogFileName);
+
   const dataFileName = baseFileName + "-data.csv";
   const dataFilePath = join(outFolder, dataFileName);
 
@@ -45,6 +48,10 @@ export async function createRunLogger(scriptName, dataHeaders, outFolder) {
   });
   const errorLogCsvWriter = createObjectCsvWriter({
     path: errorLogFilePath,
+    header: KEY_VAL_HEADER,
+  });
+  const failedLogCsvWriter = createObjectCsvWriter({
+    path: failedLogFilePath,
     header: KEY_VAL_HEADER,
   });
 
@@ -112,6 +119,15 @@ export async function createRunLogger(scriptName, dataHeaders, outFolder) {
       toWrite.unshift({ key: "date", val: nowStr });
       toWrite.push({ key: "", val: "" });
       await this.errorLogCsvWriter.writeRecords(toWrite);
+    },
+    failedLogCsvWriter,
+    addToFailedLog: async function (toAdd) {
+      console.log(scriptName, "[FAILED]", toAdd);
+      const toWrite = objToKeyVal(toAdd).map((obj) => {
+        return { ...obj };
+      });
+      toWrite.push({ key: "", val: "" });
+      await this.failedLogCsvWriter.writeRecords(toWrite);
     },
     dataCsvWriter,
     addToData: async function (toAdd) {
