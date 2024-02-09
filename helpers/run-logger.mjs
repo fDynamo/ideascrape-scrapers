@@ -133,7 +133,21 @@ export async function createRunLogger(scriptName, dataHeaders, outFolder) {
     addToData: async function (toAdd) {
       console.log(scriptName, "[WRITING]", "size", toAdd.length);
       console.log(scriptName, "[WRITING]", "sample", toAdd[0]);
-      await this.dataCsvWriter.writeRecords(toAdd);
+      const toWrite = toAdd.map((item) => {
+        const toReturn = {};
+        Object.entries(item).forEach((entry) => {
+          const key = entry[0];
+          const val = entry[1];
+
+          let endVal = val;
+          if (Array.isArray(val)) {
+            endVal = JSON.stringify(val);
+          }
+          toReturn[key] = endVal;
+        });
+        return toReturn;
+      });
+      await this.dataCsvWriter.writeRecords(toWrite);
     },
   };
 }
