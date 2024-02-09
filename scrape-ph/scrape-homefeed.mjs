@@ -16,7 +16,7 @@ const main = async () => {
     "image_url",
     "listed_at",
     "updated_at",
-    "ph_url",
+    "source_url",
   ];
   const runLogger = await createRunLogger(
     "ph-scrape-homefeed",
@@ -104,13 +104,13 @@ const main = async () => {
         let listed_at = "";
         let updated_at = "";
         let count_follower = 0;
-        let ph_url = "";
+        let source_url = "";
         try {
           image_url = product.structuredData.image;
           listed_at = product.structuredData.datePublished;
           updated_at = product.structuredData.dateModified;
           count_follower = product.followersCount;
-          ph_url = product.url;
+          source_url = product.url;
         } catch {}
 
         recordsToWrite.push({
@@ -119,7 +119,7 @@ const main = async () => {
           listed_at,
           updated_at,
           count_follower,
-          ph_url,
+          source_url,
         });
       });
 

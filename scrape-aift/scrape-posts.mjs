@@ -19,7 +19,7 @@ const main = async () => {
     "product_url",
     "count_save",
     "image_url",
-    "aift_url",
+    "source_url",
     "listed_at",
     "updated_at",
   ];
@@ -196,7 +196,7 @@ const main = async () => {
           product_url: result.productInfo.productLink,
           count_save: result.ratings.countSaves,
           image_url: result.productInfo.imageUrl,
-          aift_url: urlToScrape,
+          source_url: urlToScrape,
           listed_at: result.productInfo.launchDateText,
           updated_at: firstFeaturedText,
         };

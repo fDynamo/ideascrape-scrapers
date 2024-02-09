@@ -17,7 +17,7 @@ import UserAgent from "user-agents";
 
 const main = async () => {
   const OUT_FOLDER = getOutFolder("scrape_aift_lists");
-  const dataHeaders = ["product_url", "count_save", "image_url", "aift_url"];
+  const dataHeaders = ["product_url", "count_save", "image_url", "source_url"];
   const runLogger = await createRunLogger(
     "aift-scrape-lists",
     dataHeaders,
@@ -139,7 +139,7 @@ const main = async () => {
           product_url: obj.sourceUrl,
           count_save: obj.countSaves,
           image_url: obj.imageUrl,
-          aift_url: obj.aiftUrl,
+          source_url: obj.aiftUrl,
         };
       });
 

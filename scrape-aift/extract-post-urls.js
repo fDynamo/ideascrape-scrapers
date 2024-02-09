@@ -59,7 +59,7 @@ const main = async () => {
     const filepath = path.join(LISTS_FOLDER, file);
     const fileRows = await readCsvFile(filepath);
     fileRows.forEach((row) => {
-      const url = row.aift_url;
+      const url = row.source_url;
       urlsList.push(url);
     });
   }
