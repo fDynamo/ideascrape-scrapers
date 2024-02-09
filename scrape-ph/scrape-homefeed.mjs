@@ -176,9 +176,6 @@ const main = async () => {
       break;
     }
 
-    // Increment cursor
-    cursor++;
-
     if (cursor >= ENDING_CURSOR) {
       endLogContents.message = "Met ending cursor";
       break;
