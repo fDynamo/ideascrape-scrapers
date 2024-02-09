@@ -40,7 +40,7 @@ const main = async () => {
 
   if (arg1) {
     if (arg1.startsWith("preset-")) {
-      const presetName = arg1.replace("preset-");
+      const presetName = arg1.replace("preset-", "");
       const presetFilename = presetName + ".json";
       const presetFilepath = path.join(LIST_PRESETS_FOLDER, presetFilename);
       LIST_FILEPATH = presetFilepath;
