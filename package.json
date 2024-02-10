@@ -6,9 +6,7 @@
   "scripts": {
     "scrape:all:daily": "npm-run-all --parallel scrape:ph:daily scrape:aift:daily",
     "scrape:ph:daily": "node ./scrape-ph/scrape-homefeed.mjs 14",
-    "scrape:aift:daily": "node ./scrape-aift/scrape-front-page.mjs && node ./scrape-aift/scrape-periods.mjs 2024 && node ./scrape-aift/extract-post-urls.js && node ./scrape-aift/scrape-posts.mjs",
-    "scrape:aift:all": "node ./scrape-aift/scrape-front-page.mjs && node ./scrape-aift/scrape-periods.mjs && node ./scrape-aift/extract-post-urls.js all && node ./scrape-aift/scrape-posts.mjs",
-    "scrape:aift:posts:all": "node ./scrape-aift/extract-post-urls.js all && node ./scrape-aift/scrape-posts.mjs"
+    "scrape:aift:daily": "node ./scrape-aift/scrape-lists.mjs preset-front-page && node ./scrape-aift/extract-post-urls.js latest && node ./scrape-aift/scrape-posts.mjs latest"
   },
   "author": "",
   "license": "ISC",
