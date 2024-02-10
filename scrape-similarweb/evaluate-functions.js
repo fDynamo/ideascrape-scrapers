@@ -152,6 +152,9 @@ const evaluateSimilarWebPage = async () => {
   const avgVisitDuration = engagementInfo["avg-visit-duration"] || "";
   delete engagementInfo["avg-visit-duration"];
 
+  const totalVisitsChange = engagementInfo["total-visits-change"] || "";
+  engagementInfo = Object.keys(engagementInfo).length ? engagementInfo : "";
+
   // Get country data
   const countriesData = [];
   const geographyChartEl = document.querySelector(
@@ -215,6 +218,7 @@ const evaluateSimilarWebPage = async () => {
     rankCategoryChange,
     rankCategoryName,
     totalVisits,
+    totalVisitsChange,
     bounceRate,
     pagesPerVisit,
     avgVisitDuration,

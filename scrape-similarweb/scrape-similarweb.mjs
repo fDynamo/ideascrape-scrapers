@@ -2,14 +2,11 @@ import puppeteer from "puppeteer-extra";
 import { join } from "path";
 import { evaluateSimilarWebPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { createObjectCsvWriter } from "csv-writer";
 import {
-  convertObjKeysToHeader,
   getArgs,
   getPercentageString,
   timeoutPromise,
 } from "../helpers/index.js";
-import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
@@ -18,18 +15,26 @@ import UserAgent from "user-agents";
 
 const main = async () => {
   // Create runLogger
-  const OUT_FOLDER = getOutFolder("scrape_similarweb");
-  const runLogger = await createRunLogger("scrape_similarweb", OUT_FOLDER);
+  const OUT_FOLDER = getOutFolder("scrape_individual");
+  const dataHeaders = [
+    "domain",
+    "total_visits_last_month",
+    "total_visits_last_month_change",
+    "category_name",
+    "data_created_at",
+    "company_info",
+    "countries_data",
+  ];
+  const runLogger = await createRunLogger(
+    "scrape-similarweb",
+    dataHeaders,
+    OUT_FOLDER
+  );
 
   // High level file constants
   const SOURCE_FILEPATH = join(
-    getOutFolder("source_extracts"),
-    "similarweb_urls_extract.csv"
-  );
-  const OUT_FILE_PATH = join(OUT_FOLDER, runLogger.baseFileName + ".csv");
-  const FAILED_FILE_PATH = join(
-    OUT_FOLDER,
-    runLogger.baseFileName + "-failed.csv"
+    getOutFolder("filtered_individual_data"),
+    "filtered_domains.csv"
   );
 
   // Run constants
@@ -41,10 +46,6 @@ const main = async () => {
   const MAX_TRIES = 3;
   const MAX_SUCCESSIVE_ERRORS = 10;
   const REQUESTS_PER_REFRESH = 5; // As long as this is < MAX_SUCCESSIVE_ERRORS, guarantee we reset browsers in case we get blocked
-
-  // Some options
-  const USE_PROXY = false;
-  const USE_HEADLESS = true;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
@@ -88,7 +89,7 @@ const main = async () => {
 
   // Read url file
   const urlsFileContents = await readCsvFile(urlsFilepath);
-  const urls = urlsFileContents.map((row) => row.url);
+  const urls = urlsFileContents.map((row) => row.domain);
   const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
 
   // Log start
@@ -100,13 +101,8 @@ const main = async () => {
 
   // Puppeteer initializers
   const initializeBrowser = async () => {
-    const proxyServer = process.env.BRIGHTDATA_DATA_CENTER_HOST_URL;
-    const args = USE_PROXY
-      ? [`--proxy-server=${proxyServer}`, `--ignore-certificate-errors`]
-      : [];
     return await puppeteer.launch({
-      headless: USE_HEADLESS ? "new" : false,
-      args,
+      headless: "new",
     });
   };
 
@@ -123,13 +119,6 @@ const main = async () => {
     });
     await page.setRequestInterception(true);
     await page.setDefaultNavigationTimeout(NAV_TIMEOUT);
-
-    if (USE_PROXY) {
-      await page.authenticate({
-        username: process.env.BRIGHTDATA_DATA_CENTER_USERNAME,
-        password: process.env.BRIGHTDATA_DATA_CENTER_PASSWORD,
-      });
-    }
 
     page.on("request", (request) => {
       if (request.resourceType() === "image") {
@@ -155,7 +144,7 @@ const main = async () => {
     page = await initializePage(browser);
 
     // Write to log
-    await runLogger.addToLog({
+    await runLogger.addToActionLog({
       message: "refreshing browser",
     });
     await timeoutPromise(REFRESH_DELAY);
@@ -170,14 +159,6 @@ const main = async () => {
   let countSuccessiveErrors = 0;
 
   // CSV writers related
-  let mainCsvWriter = null;
-  const failedCsvWriter = createObjectCsvWriter({
-    path: FAILED_FILE_PATH,
-    header: [
-      { id: "url", title: "url" },
-      { id: "error", title: "error" },
-    ],
-  });
   const endLogContents = {};
 
   // Register graceful exit
@@ -190,6 +171,11 @@ const main = async () => {
   try {
     for (runIndex = startIndex; runIndex < lastIndex; runIndex++) {
       try {
+        // Handle forced stop
+        if (forcedStop) {
+          throw new Error(FORCED_STOP_ERROR_STRING);
+        }
+
         // Refresh if needed
         const requestsNum = runIndex - startIndex;
         if (requestsNum > 0 && requestsNum % REQUESTS_PER_REFRESH == 0) {
@@ -209,7 +195,7 @@ const main = async () => {
         const requestStartedDate = new Date();
         const requestStartedStr = requestStartedDate.toISOString();
 
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           runIndex,
           urlToScrape,
           message: "start",
@@ -218,7 +204,7 @@ const main = async () => {
 
         await page.goto(similarwebUrl);
 
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           message: "navigated to " + similarwebUrl,
         });
 
@@ -261,7 +247,7 @@ const main = async () => {
           throw new Error(WAIT_FOR_TIMEOUT_ERROR_STRING);
         }
 
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           pageType,
         });
 
@@ -280,10 +266,10 @@ const main = async () => {
           );
 
           // Write to log
-          await runLogger.addToLog({
-            runIndex,
-            urlToScrape,
+          await runLogger.addToActionLog({
+            notFoundUrl: urlToScrape,
             message: "not found, skipping",
+            runIndex,
             percent: donePercentageString,
             reqStartedAt: requestStartedStr,
             reqEndedAt: requestEndedStr,
@@ -303,19 +289,18 @@ const main = async () => {
           }
 
           // Process results
-          results._reqMeta = {
-            urlToScrape,
+          const recordToWrite = {
+            domain: urlToScrape,
+            total_visits_last_month: results.totalVisits,
+            total_visits_last_month_change: results.totalVisitsChange,
+            category_name: results.rankCategoryName,
+            data_created_at: results.dataDate,
+            company_info: results.companyInfoList,
+            countries_data: results.countriesData,
           };
-          const recordToWrite = arraySafeFlatten(results);
 
           // Write results
-          if (!mainCsvWriter) {
-            mainCsvWriter = createObjectCsvWriter({
-              path: OUT_FILE_PATH,
-              header: convertObjKeysToHeader(recordToWrite),
-            });
-          }
-          await mainCsvWriter.writeRecords([recordToWrite]);
+          await runLogger.addToData([recordToWrite]);
 
           // Print progress
           const donePercentageString = getPercentageString(
@@ -325,10 +310,9 @@ const main = async () => {
           );
 
           // Write to log
-          await runLogger.addToLog({
+          await runLogger.addToActionLog({
+            finishedUrl: urlToScrape,
             runIndex,
-            urlToScrape,
-            message: "success",
             percent: donePercentageString,
             reqStartedAt: requestStartedStr,
             reqEndedAt: requestEndedStr,
@@ -342,11 +326,6 @@ const main = async () => {
 
         countSuccessfulScrapes += 1;
         await timeoutPromise(RUN_DELAY);
-
-        // Handle forced stop
-        if (forcedStop) {
-          throw new Error(FORCED_STOP_ERROR_STRING);
-        }
       } catch (error) {
         // Handle forced stop in case of target closed
         if (forcedStop) {
@@ -356,7 +335,7 @@ const main = async () => {
         const errString = error + "";
 
         // Write to log
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           runIndex,
           urlToScrape,
           message: "error",
@@ -386,7 +365,7 @@ const main = async () => {
           await refreshBrowser();
 
           // Write to log
-          await runLogger.addToLog({
+          await runLogger.addToActionLog({
             runIndex,
             urlToScrape,
             message: "retrying",
@@ -401,17 +380,18 @@ const main = async () => {
           countTries = 0;
 
           // Write to log
-          await runLogger.addToLog({
+          await runLogger.addToActionLog({
+            failedUrl: urlToScrape,
             runIndex,
-            urlToScrape,
             message: "FAILED! Skipping.",
             error: errString,
           });
 
           // Write url in error file
-          await failedCsvWriter.writeRecords([
-            { url: urlToScrape, error: errString },
-          ]);
+          await runLogger.addToFailedLog({
+            url: urlToScrape,
+            error: errString,
+          });
 
           countFailedScrapes += 1;
           countSuccessiveErrors += 1;
