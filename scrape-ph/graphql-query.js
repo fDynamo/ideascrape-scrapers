@@ -14,6 +14,7 @@ query HomePage($cursor: String, $kind: HomefeedKindEnum!) {
         date
         items {
           ... on Post {
+            thumbnailImageUuid
             product {
               websiteUrl
               structuredData

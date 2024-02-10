@@ -98,7 +98,7 @@ const main = async () => {
 
       items.forEach((obj) => {
         if (!obj.product) return;
-        const { product } = obj;
+        const { product, thumbnailImageUuid } = obj;
 
         let image_url = "";
         let listed_at = "";
@@ -106,7 +106,9 @@ const main = async () => {
         let count_follower = 0;
         let source_url = "";
         try {
-          image_url = product.structuredData.image;
+          image_url = thumbnailImageUuid
+            ? "https://ph-files.imgix.net/" + thumbnailImageUuid
+            : "";
           listed_at = product.structuredData.datePublished;
           updated_at = product.structuredData.dateModified;
           count_follower = product.followersCount;
