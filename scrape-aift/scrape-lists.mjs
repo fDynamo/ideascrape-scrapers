@@ -139,7 +139,7 @@ const main = async () => {
           product_url: obj.sourceUrl,
           count_save: obj.countSaves,
           image_url: obj.imageUrl,
-          source_url: obj.aiftUrl,
+          source_url: obj.postUrl,
         };
       });
 
