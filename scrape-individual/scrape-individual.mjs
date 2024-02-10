@@ -2,47 +2,49 @@ import puppeteer from "puppeteer-extra";
 import { join } from "path";
 import { evaluateGenericPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import { createObjectCsvWriter } from "csv-writer";
 import {
-  convertObjKeysToHeader,
   getArgs,
   getPercentageString,
   timeoutPromise,
 } from "../helpers/index.js";
-import { arraySafeFlatten } from "../helpers/flat-array-safe.mjs";
 import { getOutFolder } from "../helpers/get-paths.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import UserAgent from "user-agents";
-import fs from "fs";
 
 const main = async () => {
   // Create runLogger
-  const OUT_FOLDER = getOutFolder("scrape_individual");
-  const runLogger = await createRunLogger("scrape_individual", OUT_FOLDER);
+  const OUT_FOLDER = getOutFolder("individual_scrape");
+  const dataHeaders = [
+    "url",
+    "title",
+    "description",
+    "favicon_url",
+    "twitter_meta_tags",
+    "og_meta_tags",
+  ];
+  const runLogger = await createRunLogger(
+    "scrape-individual",
+    dataHeaders,
+    OUT_FOLDER
+  );
 
   // High level file constants
   const SOURCE_FILEPATH = join(
-    getOutFolder("source_extracts"),
-    "individual_urls_extract.csv"
+    getOutFolder("filtered_urls"),
+    "filtered_urls.csv"
   );
-  const OUT_FILE_PATH = join(OUT_FOLDER, runLogger.baseFileName + ".csv");
-  const FAILED_FILE_PATH = join(
-    OUT_FOLDER,
-    runLogger.baseFileName + "-failed.csv"
-  );
-  const FAVICON_FOLDER = getOutFolder("favicons");
 
   // Run constants
-  const NAV_TIMEOUT = 1 * 60 * 1000;
+  const NAV_TIMEOUT = 30 * 1000;
   const RUN_DELAY = 100;
   const RETRY_DELAY = 1 * 1000;
   const REFRESH_DELAY = 1 * 1000;
   const MAX_TRIES = 2;
   const MAX_SUCCESSIVE_ERRORS = 10;
   const REQUESTS_PER_REFRESH = 10;
-  const JUST_A_MOMENT_DELAY = 5 * 1000;
+  const JUST_A_MOMENT_DELAY = 10 * 1000;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
@@ -68,6 +70,9 @@ const main = async () => {
   const cliArgs = getArgs();
   const arg1 = cliArgs[0];
 
+  let percentageValue = -1;
+  let percentageMultiplier = -1;
+
   if (arg1) {
     urlsFilepath = arg1;
 
@@ -77,8 +82,13 @@ const main = async () => {
 
     if (arg2) {
       if (arg3) {
-        startIndex = parseInt(arg2);
-        endIndex = parseInt(arg3);
+        if (arg2.includes("%")) {
+          percentageValue = parseFloat(arg2.replace("%"));
+          percentageMultiplier = parseInt(arg3);
+        } else {
+          startIndex = parseInt(arg2);
+          endIndex = parseInt(arg3);
+        }
       } else {
         startIndex = parseInt(arg2);
       }
@@ -93,27 +103,28 @@ const main = async () => {
   // Read url file
   const urlsFileContents = await readCsvFile(urlsFilepath);
   const urls = urlsFileContents.map((row) => row.url);
-  const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+  let lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+
+  // Handle percentages
+  if (percentageValue > 0) {
+    const percentageCount = Math.floor((lastIndex * percentageValue) / 100);
+    startIndex = percentageCount * percentageMultiplier;
+    lastIndex = percentageCount * (percentageMultiplier + 1);
+    if (lastIndex > urls.length) lastIndex = urls.length;
+  }
 
   // Log start
   await runLogger.addToStartLog({
     cliArgs,
     urlsFilepath: urlsFilepath,
     countUrlsToScrape: lastIndex - startIndex,
+    startIndex,
+    lastIndex,
   });
 
   // Puppeteer initializers
   const initializeBrowser = async () => {
-    const USE_BRIGHT_DATA = false;
-    if (USE_BRIGHT_DATA) {
-      const wsEndpoint = `wss://${process.env.BRIGHTDATA_USERNAME}:${process.env.BRIGHTDATA_PASSWORD}@${process.env.BRIGHTDATA_HOST_URL}`;
-      return await puppeteer.connect({
-        headless: "new",
-        browserWSEndpoint: wsEndpoint,
-      });
-    } else {
-      return await puppeteer.launch({ headless: "new" });
-    }
+    return await puppeteer.launch({ headless: "new" });
   };
 
   const initializePage = async (browser) => {
@@ -149,21 +160,13 @@ const main = async () => {
     page = await initializePage(browser);
 
     // Write to log
-    await runLogger.addToLog({
+    await runLogger.addToActionLog({
       message: "refreshing browser",
     });
     await timeoutPromise(REFRESH_DELAY);
   };
 
   // CSV writers related
-  let mainCsvWriter = null;
-  const failedCsvWriter = createObjectCsvWriter({
-    path: FAILED_FILE_PATH,
-    header: [
-      { id: "url", title: "url" },
-      { id: "error", title: "error" },
-    ],
-  });
   const endLogContents = {};
 
   // Register graceful exit
@@ -193,7 +196,7 @@ const main = async () => {
         const requestStartedDate = new Date();
         const requestStartedStr = requestStartedDate.toISOString();
 
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           runIndex,
           urlToScrape,
           message: "start",
@@ -202,7 +205,7 @@ const main = async () => {
 
         await page.goto("https://" + urlToScrape);
 
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           message: "navigated to " + urlToScrape,
         });
 
@@ -210,6 +213,9 @@ const main = async () => {
 
         // Check if we are told to wait
         if (results.pageTitle && results.pageTitle.includes("Just a moment")) {
+          await runLogger.addToActionLog({
+            message: "waiting for page...",
+          });
           await timeoutPromise(JUST_A_MOMENT_DELAY);
           results = await page.evaluate(evaluateGenericPage);
         }
@@ -220,53 +226,17 @@ const main = async () => {
           (requestEndedDate.getTime() - requestStartedDate.getTime()) / 1000;
 
         // Process results
-        results._reqMeta = {
-          urlToScrape,
+        const recordToWrite = {
+          url: urlToScrape,
+          title: results.pageTitle,
+          description: results.pageDescription,
+          favicon_url: results.faviconUrl,
+          twitter_meta_tags: results.twitterMetaTags,
+          og_meta_tags: results.ogMetaTags,
         };
-        const recordToWrite = arraySafeFlatten(results);
 
         // Write results
-        if (!mainCsvWriter) {
-          mainCsvWriter = createObjectCsvWriter({
-            path: OUT_FILE_PATH,
-            header: convertObjKeysToHeader(recordToWrite),
-          });
-        }
-        await mainCsvWriter.writeRecords([recordToWrite]);
-
-        // Download favicon
-        if (recordToWrite.faviconUrl) {
-          let imageUrl = recordToWrite.faviconUrl;
-          if (!imageUrl.startsWith("https")) {
-            const urlObj = new URL(imageUrl, "https://" + urlToScrape);
-            imageUrl = urlObj.toString();
-          }
-          await runLogger.addToLog({
-            message: "downloading favicon",
-            imageUrl,
-          });
-
-          const formattedUrlToScrape = urlToScrape
-            .replaceAll(".", "_")
-            .replaceAll("/", "_");
-          const filenameBase = "favicon-" + formattedUrlToScrape;
-          // TODO: Recognize svgs and other file formats
-          const faviconFilename = filenameBase + ".png";
-          const faviconFilepath = join(FAVICON_FOLDER, faviconFilename);
-
-          try {
-            const imgPage = await page.goto(imageUrl);
-            fs.writeFileSync(faviconFilepath, await imgPage.buffer());
-            await runLogger.addToLog({
-              message: "success downloading favicon",
-            });
-          } catch (error) {
-            await runLogger.addToLog({
-              message: "failed downloading favicon",
-              error: error + "",
-            });
-          }
-        }
+        await runLogger.addToData([recordToWrite]);
 
         // Print progress
         const donePercentageString = getPercentageString(
@@ -276,10 +246,9 @@ const main = async () => {
         );
 
         // Write to log
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
+          successUrl: urlToScrape,
           runIndex,
-          urlToScrape,
-          message: "success",
           percent: donePercentageString,
           reqStartedAt: requestStartedStr,
           reqEndedAt: requestEndedStr,
@@ -308,7 +277,7 @@ const main = async () => {
         const errString = error + "";
 
         // Write to log
-        await runLogger.addToLog({
+        await runLogger.addToActionLog({
           runIndex,
           urlToScrape,
           message: "error",
@@ -334,7 +303,7 @@ const main = async () => {
           await refreshBrowser();
 
           // Write to log
-          await runLogger.addToLog({
+          await runLogger.addToActionLog({
             runIndex,
             urlToScrape,
             message: "retrying",
@@ -348,17 +317,17 @@ const main = async () => {
           countTries = 0;
 
           // Write to log
-          await runLogger.addToLog({
+          await runLogger.addToActionLog({
+            failedUrl: urlToScrape,
             runIndex,
-            urlToScrape,
             message: "FAILED! Skipping",
             error: errString,
           });
 
-          // Write url in error file
-          await failedCsvWriter.writeRecords([
-            { url: urlToScrape, error: errString },
-          ]);
+          await runLogger.addToFailedLog({
+            url: urlToScrape,
+            error: errString,
+          });
 
           countFailedScrapes += 1;
           countSuccessiveErrors += 1;
