@@ -42,14 +42,16 @@ const main = async () => {
   const RETRY_DELAY = 1 * 1000;
   const REFRESH_DELAY = 1 * 1000;
   const MAX_TRIES = 2;
-  const MAX_SUCCESSIVE_ERRORS = 10;
+  const MAX_SUCCESSIVE_ERRORS = 20;
   const REQUESTS_PER_REFRESH = 10;
   const JUST_A_MOMENT_DELAY = 10 * 1000;
+  const DISCONNECTED_DELAY = 20 * 1000;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
   const SUCCESSIVE_ERROR_STRING = "Max successive errors reached!";
   const NAV_ERROR_SUBSTRING = " Navigation timeout of";
+  const INTERNET_DISCONNECTED_ERROR_STRING = "net::ERR_INTERNET_DISCONNECTED";
 
   // CLI constants
   const CLI_ARG_KEY_SOURCE = "source";
@@ -167,7 +169,11 @@ const main = async () => {
   };
 
   // CSV writers related
-  const endLogContents = {};
+  const endLogContents = {
+    countUrlsToScrape: lastIndex - startIndex,
+    startIndex,
+    lastIndex,
+  };
 
   // Register graceful exit
   let forcedStop = false;
@@ -295,11 +301,18 @@ const main = async () => {
 
         // Retry on nav time outs
         const isNavTimeout = errString.includes(NAV_ERROR_SUBSTRING);
+        const isDisconnected = errString.includes(
+          INTERNET_DISCONNECTED_ERROR_STRING
+        );
+        const canRetry = isNavTimeout || isDisconnected;
 
         countTries++;
 
         // If too many tries, skip to next url, might be something wrong
-        if (isNavTimeout && countTries < MAX_TRIES) {
+        if (canRetry && countTries < MAX_TRIES) {
+          if (isDisconnected) {
+            await timeoutPromise(DISCONNECTED_DELAY);
+          }
           await refreshBrowser();
 
           // Write to log

@@ -15,7 +15,7 @@ import UserAgent from "user-agents";
 
 const main = async () => {
   // Create runLogger
-  const OUT_FOLDER = getOutFolder("scrape_individual");
+  const OUT_FOLDER = getOutFolder("similarweb_scrape");
   const dataHeaders = [
     "domain",
     "total_visits_last_month",
@@ -97,6 +97,8 @@ const main = async () => {
     cliArgs,
     urlsFilepath: urlsFilepath,
     countUrlsToScrape: lastIndex - startIndex,
+    startIndex,
+    lastIndex,
   });
 
   // Puppeteer initializers
