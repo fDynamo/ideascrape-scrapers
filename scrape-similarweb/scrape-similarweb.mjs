@@ -1,21 +1,31 @@
 import puppeteer from "puppeteer-extra";
-import { join } from "path";
 import { evaluateSimilarWebPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import {
-  getArgs,
-  getPercentageString,
-  timeoutPromise,
-} from "../helpers/index.js";
-import { getOutFolder } from "../helpers/get-paths.js";
+import { getPercentageString, timeoutPromise } from "../helpers/index.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import UserAgent from "user-agents";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
 
 const main = async () => {
+  // Process input arguments
+  const argv = yargs(hideBin(process.argv)).argv;
+  let { outFolder, domainListFilepath, startIndex, endIndex } = argv;
+  if (!outFolder || !domainListFilepath) {
+    console.log("Invalid arguments");
+    return;
+  }
+  if (!startIndex) startIndex = 0;
+  if (!endIndex) endIndex = 0;
+
+  // Read url file
+  const urlsFileContents = await readCsvFile(domainListFilepath);
+  const urls = urlsFileContents.map((row) => row.domain);
+  const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+
   // Create runLogger
-  const OUT_FOLDER = getOutFolder("similarweb_scrape");
   const dataHeaders = [
     "domain",
     "total_visits_last_month",
@@ -26,15 +36,9 @@ const main = async () => {
     "countries_data",
   ];
   const runLogger = await createRunLogger(
-    "scrape-similarweb",
+    "sup-similarweb-scrape",
     dataHeaders,
-    OUT_FOLDER
-  );
-
-  // High level file constants
-  const SOURCE_FILEPATH = join(
-    getOutFolder("filtered_individual_data"),
-    "filtered_domains.csv"
+    outFolder
   );
 
   // Run constants
@@ -46,6 +50,7 @@ const main = async () => {
   const MAX_TRIES = 3;
   const MAX_SUCCESSIVE_ERRORS = 10;
   const REQUESTS_PER_REFRESH = 5; // As long as this is < MAX_SUCCESSIVE_ERRORS, guarantee we reset browsers in case we get blocked
+  const DISCONNECTED_DELAY = 5 * 1000;
 
   // Error constants
   const FORCED_STOP_ERROR_STRING = "Forced stop";
@@ -53,49 +58,12 @@ const main = async () => {
   const NAV_ERROR_SUBSTRING = " Navigation timeout of";
   const NO_DATA_ERROR_STRING = "Page acccessed but no data in page."; // Similarweb page renders but nothing in it
   const WAIT_FOR_TIMEOUT_ERROR_STRING = "Waited for selectors timeout.";
-
-  // CLI constants
-  const CLI_ARG_KEY_SOURCE = "source";
-
-  let urlsFilepath = CLI_ARG_KEY_SOURCE;
-  let startIndex = 0;
-  let endIndex = 0;
-
-  // Handle CLI
-  const cliArgs = getArgs();
-  const arg1 = cliArgs[0];
-
-  if (arg1) {
-    urlsFilepath = arg1;
-
-    // Parse second and third args for start and stop
-    const arg2 = cliArgs[1];
-    const arg3 = cliArgs[2];
-
-    if (arg2) {
-      if (arg3) {
-        startIndex = parseInt(arg2);
-        endIndex = parseInt(arg3);
-      } else {
-        startIndex = parseInt(arg2);
-      }
-    }
-  }
-
-  // Get urls file path if source
-  if (urlsFilepath == CLI_ARG_KEY_SOURCE) {
-    urlsFilepath = SOURCE_FILEPATH;
-  }
-
-  // Read url file
-  const urlsFileContents = await readCsvFile(urlsFilepath);
-  const urls = urlsFileContents.map((row) => row.domain);
-  const lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+  const INTERNET_DISCONNECTED_ERROR_STRING = "net::ERR_INTERNET_DISCONNECTED";
 
   // Log start
   await runLogger.addToStartLog({
     cliArgs,
-    urlsFilepath: urlsFilepath,
+    domainListFilepath,
     countUrlsToScrape: lastIndex - startIndex,
     startIndex,
     lastIndex,
@@ -359,12 +327,22 @@ const main = async () => {
         const isWaitForTimeout = errString.includes(
           WAIT_FOR_TIMEOUT_ERROR_STRING
         );
+        const isInternetDisconnected = errString.includes(
+          INTERNET_DISCONNECTED_ERROR_STRING
+        );
+
+        const canRetry =
+          isInternetDisconnected || isNavTimeout || isWaitForTimeout;
 
         countTries++;
 
-        if ((isNavTimeout || isWaitForTimeout) && countTries < MAX_TRIES) {
+        if (canRetry && countTries < MAX_TRIES) {
           // Reinitialize browser
           await refreshBrowser();
+
+          if (isInternetDisconnected) {
+            await timeoutPromise(DISCONNECTED_DELAY);
+          }
 
           // Write to log
           await runLogger.addToActionLog({
