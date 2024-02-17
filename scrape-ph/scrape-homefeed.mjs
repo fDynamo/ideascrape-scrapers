@@ -1,4 +1,3 @@
-import { getOutFolder } from "../helpers/get-paths.js";
 import {
   getArgs,
   timeoutPromise,
@@ -7,9 +6,20 @@ import {
 import { queryPH } from "./graphql-query.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import registerGracefulExit from "../helpers/graceful-exit.js";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
 
 const main = async () => {
-  const OUT_FOLDER = getOutFolder("scrape_ph");
+  // Process input arguments
+  const argv = yargs(hideBin(process.argv)).argv;
+  let { outFolder, startIndex, endIndex } = argv;
+  if (!outFolder) {
+    console.log("Invalid arguments");
+    return;
+  }
+  if (!startIndex) startIndex = 0;
+  if (!endIndex) endIndex = 5;
+
   const dataHeaders = [
     "product_url",
     "count_follower",
@@ -19,9 +29,9 @@ const main = async () => {
     "source_url",
   ];
   const runLogger = await createRunLogger(
-    "ph-scrape-homefeed",
+    "source-ph-scrape",
     dataHeaders,
-    OUT_FOLDER
+    outFolder
   );
 
   // Run variables
@@ -35,8 +45,8 @@ const main = async () => {
   const ERR_STRING_MAX_RETRIES_REACHED = "Max retries reached!";
 
   // Start and end cursor defaults
-  let START_CURSOR = 0;
-  let ENDING_CURSOR = 5;
+  let START_CURSOR = startIndex;
+  let ENDING_CURSOR = endIndex;
 
   // Register graceful exit
   let forcedStop = false;
