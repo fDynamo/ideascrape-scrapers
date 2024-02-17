@@ -1,21 +1,31 @@
 import puppeteer from "puppeteer-extra";
-import { join } from "path";
 import { evaluateGenericPage } from "./evaluate-functions.js";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
-import {
-  getArgs,
-  getPercentageString,
-  timeoutPromise,
-} from "../helpers/index.js";
-import { getOutFolder } from "../helpers/get-paths.js";
+import { getPercentageString, timeoutPromise } from "../helpers/index.js";
 import registerGracefulExit from "../helpers/graceful-exit.js";
 import { readCsvFile } from "../helpers/read-csv.js";
 import { createRunLogger } from "../helpers/run-logger.mjs";
 import UserAgent from "user-agents";
+import yargs from "yargs/yargs";
+import { hideBin } from "yargs/helpers";
 
 const main = async () => {
+  // Process input arguments
+  const argv = yargs(hideBin(process.argv)).argv;
+  let { outFolder, urlListFilepath, startIndex, endIndex } = argv;
+  if (!outFolder || !urlListFilepath) {
+    console.log("Invalid arguments");
+    return;
+  }
+  if (!startIndex) startIndex = 0;
+  if (!endIndex) endIndex = 0;
+
+  // Read url file
+  const urlsFileContents = await readCsvFile(urlListFilepath);
+  const urls = urlsFileContents.map((row) => row.url);
+  let lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
+
   // Create runLogger
-  const OUT_FOLDER = getOutFolder("individual_scrape");
   const dataHeaders = [
     "url",
     "title",
@@ -25,15 +35,9 @@ const main = async () => {
     "og_meta_tags",
   ];
   const runLogger = await createRunLogger(
-    "scrape-individual",
+    "indiv-scrape",
     dataHeaders,
-    OUT_FOLDER
-  );
-
-  // High level file constants
-  const SOURCE_FILEPATH = join(
-    getOutFolder("filtered_urls"),
-    "filtered_urls.csv"
+    outFolder
   );
 
   // Run constants
@@ -53,13 +57,7 @@ const main = async () => {
   const NAV_ERROR_SUBSTRING = " Navigation timeout of";
   const INTERNET_DISCONNECTED_ERROR_STRING = "net::ERR_INTERNET_DISCONNECTED";
 
-  // CLI constants
-  const CLI_ARG_KEY_SOURCE = "source";
-
   // Variables
-  let urlsFilepath = CLI_ARG_KEY_SOURCE;
-  let startIndex = 0;
-  let endIndex = 0;
   let urlToScrape = "";
   let runIndex = 0;
 
@@ -68,57 +66,10 @@ const main = async () => {
   let countTries = 0; // How many tries for one specific url
   let countSuccessiveErrors = 0; // How many errors in a row
 
-  // Handle CLI
-  const cliArgs = getArgs();
-  const arg1 = cliArgs[0];
-
-  let percentageValue = -1;
-  let percentageMultiplier = -1;
-
-  if (arg1) {
-    urlsFilepath = arg1;
-
-    // Parse second and third args for start and stop
-    const arg2 = cliArgs[1];
-    const arg3 = cliArgs[2];
-
-    if (arg2) {
-      if (arg3) {
-        if (arg2.includes("%")) {
-          percentageValue = parseFloat(arg2.replace("%"));
-          percentageMultiplier = parseInt(arg3);
-        } else {
-          startIndex = parseInt(arg2);
-          endIndex = parseInt(arg3);
-        }
-      } else {
-        startIndex = parseInt(arg2);
-      }
-    }
-  }
-
-  // Get urls file path if source
-  if (urlsFilepath == CLI_ARG_KEY_SOURCE) {
-    urlsFilepath = SOURCE_FILEPATH;
-  }
-
-  // Read url file
-  const urlsFileContents = await readCsvFile(urlsFilepath);
-  const urls = urlsFileContents.map((row) => row.url);
-  let lastIndex = endIndex ? Math.min(endIndex, urls.length) : urls.length;
-
-  // Handle percentages
-  if (percentageValue > 0) {
-    const percentageCount = Math.floor((lastIndex * percentageValue) / 100);
-    startIndex = percentageCount * percentageMultiplier;
-    lastIndex = percentageCount * (percentageMultiplier + 1);
-    if (lastIndex > urls.length) lastIndex = urls.length;
-  }
-
   // Log start
   await runLogger.addToStartLog({
     cliArgs,
-    urlsFilepath: urlsFilepath,
+    urlListFilepath,
     countUrlsToScrape: lastIndex - startIndex,
     startIndex,
     lastIndex,
