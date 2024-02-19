@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "indiv_scrape": "node scrape-individual/scrape-individual.mjs",
+    "sup_similarweb_scrape": "node scrape-similarweb/scrape-similarweb.mjs",
     "scrape:all:daily": "npm-run-all --parallel scrape:ph:daily scrape:aift:daily",
     "scrape:ph:daily": "node ./scrape-ph/scrape-homefeed.mjs 14",
     "scrape:aift:daily": "node ./scrape-aift/scrape-lists.mjs preset-front-page && node ./scrape-aift/extract-post-urls.js latest && node ./scrape-aift/scrape-posts.mjs latest"

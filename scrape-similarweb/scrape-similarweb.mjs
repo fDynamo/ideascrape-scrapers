@@ -62,7 +62,7 @@ const main = async () => {
 
   // Log start
   await runLogger.addToStartLog({
-    cliArgs,
+    argv,
     domainListFilepath,
     countUrlsToScrape: lastIndex - startIndex,
     startIndex,
